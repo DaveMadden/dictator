@@ -133,6 +133,10 @@ are discarded in favor of the deterministic text.
 
 ## Privacy
 
+For a full account of the design decisions, permissions, threat considerations,
+and how to verify the network claims yourself, see
+[SECURITY.md](SECURITY.md).
+
 - Audio is captured only while the hotkey is held, processed in memory, and
   never written to disk or the network.
 - With sideloaded models (above) the app makes zero network connections,
