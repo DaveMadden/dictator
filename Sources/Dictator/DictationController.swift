@@ -115,8 +115,11 @@ final class DictationController {
             var final = formatter.format(text)
             if !final.isEmpty {
                 let context = ContextCapture.capture()
-                final = await polishIfPossible(final, context: context)
+                // Record before the LLM pass: if polish ever crashes or hangs,
+                // the dictation is already recoverable from History.
                 HistoryStore.shared.add(raw: text, text: final, app: context.appName)
+                final = await polishIfPossible(final, context: context)
+                HistoryStore.shared.updateLastText(final)
                 if !injector.paste(final) {
                     report("A password field is focused — not pasting (text is in History)")
                     state = .idle

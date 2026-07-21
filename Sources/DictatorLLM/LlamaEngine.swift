@@ -94,8 +94,14 @@ public final class LlamaEngine {
         guard tokens.count < 3500 else { throw LlamaEngineError.promptTooLong }
 
         llama_memory_clear(llama_get_memory(context), true)
-        var batch = llama_batch_get_one(&tokens, Int32(tokens.count))
-        guard llama_decode(context, batch) == 0 else { throw LlamaEngineError.decodeFailed }
+        // The batch stores the token pointer and llama_decode reads it later,
+        // so the storage must stay pinned across BOTH calls — a bare &tokens
+        // is only valid for the batch_get_one call itself and crashes in
+        // release builds (stale stack slot → garbage token ids → ggml abort).
+        let promptStatus = tokens.withUnsafeMutableBufferPointer { buffer in
+            llama_decode(context, llama_batch_get_one(buffer.baseAddress, Int32(buffer.count)))
+        }
+        guard promptStatus == 0 else { throw LlamaEngineError.decodeFailed }
 
         guard let sampler = llama_sampler_chain_init(llama_sampler_chain_default_params()) else {
             throw LlamaEngineError.decodeFailed
@@ -104,12 +110,15 @@ public final class LlamaEngine {
         llama_sampler_chain_add(sampler, llama_sampler_init_greedy())
 
         var bytes: [UInt8] = []
+        var current: llama_token = 0
         for _ in 0..<maxTokens {
-            var token = llama_sampler_sample(sampler, context, -1)
-            if llama_vocab_is_eog(vocab, token) { break }
-            bytes.append(contentsOf: piece(for: token))
-            batch = llama_batch_get_one(&token, 1)
-            guard llama_decode(context, batch) == 0 else { break }
+            current = llama_sampler_sample(sampler, context, -1)
+            if llama_vocab_is_eog(vocab, current) { break }
+            bytes.append(contentsOf: piece(for: current))
+            let status = withUnsafeMutablePointer(to: &current) { pointer in
+                llama_decode(context, llama_batch_get_one(pointer, 1))
+            }
+            guard status == 0 else { break }
         }
         return String(decoding: bytes, as: UTF8.self)
     }

@@ -13,7 +13,7 @@ final class HistoryStore {
         let date: Date
         let app: String
         let raw: String
-        let text: String
+        var text: String
     }
 
     private(set) var entries: [Entry] = []
@@ -34,6 +34,12 @@ final class HistoryStore {
         if entries.count > Self.maxEntries {
             entries.removeFirst(entries.count - Self.maxEntries)
         }
+        persist()
+    }
+
+    func updateLastText(_ text: String) {
+        guard !entries.isEmpty else { return }
+        entries[entries.count - 1].text = text
         persist()
     }
 
