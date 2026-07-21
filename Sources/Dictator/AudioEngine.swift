@@ -120,6 +120,13 @@ final class AudioEngine {
 final class SpectrumAnalyzer {
     static let bandCount = 16
 
+    /// Calibrated against a quiet room reading ~-30 dB (power) per band:
+    /// silence stays dark, conversational speech spans the scale. The tilt
+    /// lifts high bands so fricatives register despite their lower energy.
+    private static let floorDB: Float = -28
+    private static let rangeDB: Float = 26
+    private static let highTiltDB: Float = 6
+
     private let fftSize = 512
     private let log2n = vDSP_Length(9)
     private let setup: FFTSetup
@@ -182,8 +189,9 @@ final class SpectrumAnalyzer {
             for bin in lo..<hi {
                 sum += magnitudes[bin]
             }
-            let db = 10 * log10(sum / Float(hi - lo) + 1e-9)
-            out[band] = min(1, max(0, (db + 55) / 55))
+            let tilt = Self.highTiltDB * Float(band) / Float(Self.bandCount - 1)
+            let db = 10 * log10(sum / Float(hi - lo) + 1e-9) + tilt
+            out[band] = min(1, max(0, (db - Self.floorDB) / Self.rangeDB))
         }
         return out
     }
