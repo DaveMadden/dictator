@@ -1,4 +1,4 @@
-.PHONY: app app-full audit run stop clean export-models install-models install-models-from-repo
+.PHONY: app app-full audit run stop clean install install-full export-models install-models install-models-from-repo
 
 # Default build: no inference engine, no downloader, no network-capable code.
 app:
@@ -24,6 +24,21 @@ install-models-from-repo:
 
 run: app
 	open build/Dictator.app
+
+# Copies the app to /Applications so Spotlight finds it and it survives
+# restarts. After installing: grant Accessibility for the new copy, then
+# enable Settings → Launch at login.
+install: app
+	-pkill -x Dictator
+	rm -rf /Applications/Dictator.app
+	cp -R build/Dictator.app /Applications/
+	open /Applications/Dictator.app
+
+install-full: app-full
+	-pkill -x Dictator
+	rm -rf /Applications/Dictator.app
+	cp -R build/Dictator.app /Applications/
+	open /Applications/Dictator.app
 
 stop:
 	-pkill -x Dictator

@@ -18,6 +18,8 @@ final class HotkeyController {
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var tapThread: Thread?
+    private var tapRunLoop: CFRunLoop?
     private var keyIsDown = false
     private var swallowSpaceUp = false
 
@@ -47,14 +49,32 @@ final class HotkeyController {
         eventTap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        // The tap must NOT live on the main runloop: this is an active tap on
+        // every keystroke, and macOS queues system-wide keyboard input behind
+        // it — a hung main thread would freeze typing everywhere. A dedicated
+        // thread keeps input flowing no matter what the app is doing.
+        let thread = Thread { [weak self] in
+            guard let self, let source = self.runLoopSource else { return }
+            self.tapRunLoop = CFRunLoopGetCurrent()
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+            CFRunLoopRun()
+        }
+        thread.name = "dictator.eventtap"
+        thread.qualityOfService = .userInteractive
+        tapThread = thread
+        thread.start()
         return true
     }
 
     func stop() {
+        if let runLoop = tapRunLoop {
+            CFRunLoopStop(runLoop)
+            tapRunLoop = nil
+        }
+        tapThread = nil
         if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            CFRunLoopSourceInvalidate(source)
             runLoopSource = nil
         }
         if let tap = eventTap {
@@ -62,6 +82,7 @@ final class HotkeyController {
             eventTap = nil
         }
         keyIsDown = false
+        swallowSpaceUp = false
     }
 
     /// Returns true when the event should be swallowed (not delivered to apps).
