@@ -40,6 +40,9 @@ final class SettingsStore {
     var llmModel: String {
         didSet { persist() }
     }
+    var llmModelPath: String {
+        didSet { persist() }
+    }
     var defaultTone: String {
         didSet { persist() }
     }
@@ -73,6 +76,7 @@ final class SettingsStore {
         // The bare qwen3:4b tag resolves to a thinking-mode build that takes
         // minutes per reply; the instruct variant answers in ~1s.
         llmModel = defaults.string(forKey: "llmModel") ?? "qwen3:4b-instruct"
+        llmModelPath = defaults.string(forKey: "llmModelPath") ?? ""
         defaultTone = defaults.string(forKey: "defaultTone") ?? "neutral"
         if let data = defaults.data(forKey: "appTones"),
            let decoded = try? JSONDecoder().decode([AppTone].self, from: data) {
@@ -91,6 +95,7 @@ final class SettingsStore {
         defaults.set(spokenCommands, forKey: "spokenCommands")
         defaults.set(llmEnabled, forKey: "llmEnabled")
         defaults.set(llmModel, forKey: "llmModel")
+        defaults.set(llmModelPath, forKey: "llmModelPath")
         defaults.set(defaultTone, forKey: "defaultTone")
         if let data = try? JSONEncoder().encode(appTones) {
             defaults.set(data, forKey: "appTones")

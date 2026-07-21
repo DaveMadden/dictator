@@ -19,9 +19,27 @@ public final class LlamaEngine {
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Dictator/llm", isDirectory: true)
 
-    public static func sideloadedModelURL() -> URL? {
+    /// Resolves which model to load. A custom path may be a GGUF file (any
+    /// extension — Ollama blobs qualify) or a directory to scan. A custom
+    /// path that resolves to nothing is an error state, never a silent
+    /// fallback to a different model. Empty/nil custom path = scan the
+    /// default sideload directory.
+    public static func resolveModelURL(customPath: String?) -> URL? {
+        if let path = customPath?.trimmingCharacters(in: .whitespaces), !path.isEmpty {
+            let expanded = (path as NSString).expandingTildeInPath
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDirectory) else {
+                return nil
+            }
+            let url = URL(fileURLWithPath: expanded)
+            return isDirectory.boolValue ? firstGGUF(in: url) : url
+        }
+        return firstGGUF(in: modelsDirectory)
+    }
+
+    private static func firstGGUF(in directory: URL) -> URL? {
         let contents = (try? FileManager.default.contentsOfDirectory(
-            at: modelsDirectory, includingPropertiesForKeys: nil
+            at: directory, includingPropertiesForKeys: nil
         )) ?? []
         return contents
             .filter { $0.pathExtension.lowercased() == "gguf" }
@@ -146,14 +164,19 @@ public actor LlamaPolisher {
     private var loadedFrom: URL?
     private let inferenceQueue = DispatchQueue(label: "dictator.llama", qos: .userInitiated)
 
-    /// Loads the sideloaded model (if any) so the first dictation doesn't
-    /// pay the multi-second model load.
-    public func warmUp() {
-        _ = try? loadedEngine()
+    /// Loads the model so the first dictation doesn't pay the multi-second
+    /// model load.
+    public func warmUp(modelURL: URL) {
+        _ = try? loadedEngine(modelURL: modelURL)
     }
 
-    public func polish(_ text: String, context: DictationContext, tone: String) async throws -> String {
-        let engine = try loadedEngine()
+    public func polish(
+        _ text: String,
+        context: DictationContext,
+        tone: String,
+        modelURL: URL
+    ) async throws -> String {
+        let engine = try loadedEngine(modelURL: modelURL)
         let system = PolishPrompt.system
         let user = PolishPrompt.user(text: text, context: context, tone: tone)
         return try await withCheckedThrowingContinuation { continuation in
@@ -167,14 +190,11 @@ public actor LlamaPolisher {
         }
     }
 
-    private func loadedEngine() throws -> LlamaEngine {
-        guard let url = LlamaEngine.sideloadedModelURL() else {
-            throw LlamaEngineError.modelLoadFailed
-        }
-        if engine == nil || loadedFrom != url {
-            NSLog("Dictator: loading embedded LLM %@", url.lastPathComponent)
-            engine = try LlamaEngine(modelURL: url)
-            loadedFrom = url
+    private func loadedEngine(modelURL: URL) throws -> LlamaEngine {
+        if engine == nil || loadedFrom != modelURL {
+            NSLog("Dictator: loading embedded LLM %@", modelURL.lastPathComponent)
+            engine = try LlamaEngine(modelURL: modelURL)
+            loadedFrom = modelURL
         }
         return engine!
     }

@@ -48,8 +48,9 @@ final class DictationController {
                 onModelStatus?("Model: load failed — retries on next dictation")
                 report("Model load failed: \(error.localizedDescription)")
             }
-            if SettingsStore.shared.llmEnabled, LlamaEngine.sideloadedModelURL() != nil {
-                await LlamaPolisher.shared.warmUp()
+            if SettingsStore.shared.llmEnabled,
+               let modelURL = LlamaEngine.resolveModelURL(customPath: SettingsStore.shared.llmModelPath) {
+                await LlamaPolisher.shared.warmUp(modelURL: modelURL)
             }
         }
     }
@@ -128,14 +129,18 @@ final class DictationController {
     }
 
     var polishStatus: String {
-        guard SettingsStore.shared.llmEnabled else { return "AI polish: off" }
-        if let url = LlamaEngine.sideloadedModelURL() {
+        let settings = SettingsStore.shared
+        guard settings.llmEnabled else { return "AI polish: off" }
+        if let url = LlamaEngine.resolveModelURL(customPath: settings.llmModelPath) {
             return "AI polish: embedded (\(url.lastPathComponent))"
         }
-        if llmAvailable {
-            return "AI polish: Ollama (\(SettingsStore.shared.llmModel))"
+        if !settings.llmModelPath.trimmingCharacters(in: .whitespaces).isEmpty {
+            return "AI polish: ⚠️ no model at configured path — check Settings"
         }
-        return "AI polish: no engine — drop a .gguf in App Support/Dictator/llm"
+        if llmAvailable {
+            return "AI polish: Ollama (\(settings.llmModel))"
+        }
+        return "AI polish: no engine — set a model path in Settings"
     }
 
     /// Stage-2 polish for 8+ word dictations. Backend priority: embedded
@@ -147,9 +152,10 @@ final class DictationController {
               text.split(separator: " ").count >= 8 else { return text }
         let tone = settings.tone(forApp: context.appName)
 
-        if LlamaEngine.sideloadedModelURL() != nil {
+        if let modelURL = LlamaEngine.resolveModelURL(customPath: settings.llmModelPath) {
             do {
-                let raw = try await LlamaPolisher.shared.polish(text, context: context, tone: tone)
+                let raw = try await LlamaPolisher.shared.polish(
+                    text, context: context, tone: tone, modelURL: modelURL)
                 let cleaned = LLMFormatter.stripWrapping(raw)
                 guard LLMFormatter.plausibleRewrite(original: text, candidate: cleaned) else {
                     NSLog("Dictator: embedded LLM output failed plausibility guard")

@@ -11,8 +11,21 @@ struct SettingsView: View {
                 Toggle("Spoken commands (\u{201C}new line\u{201D}, \u{201C}new paragraph\u{201D})", isOn: $store.spokenCommands)
             }
             Section {
-                Toggle("Polish with local AI (requires Ollama)", isOn: $store.llmEnabled)
-                TextField("Ollama model", text: $store.llmModel)
+                Toggle("Polish with local AI", isOn: $store.llmEnabled)
+                HStack(spacing: 8) {
+                    TextField("Model file or folder (blank = App Support/Dictator/llm)", text: $store.llmModelPath)
+                    Button("Choose…") {
+                        let panel = NSOpenPanel()
+                        panel.canChooseFiles = true
+                        panel.canChooseDirectories = true
+                        panel.allowsMultipleSelection = false
+                        panel.message = "Pick a GGUF model file, or a folder containing one"
+                        if panel.runModal() == .OK, let url = panel.url {
+                            store.llmModelPath = url.path
+                        }
+                    }
+                }
+                TextField("Ollama model (fallback engine)", text: $store.llmModel)
                 Picker("Default tone", selection: $store.defaultTone) {
                     ForEach(SettingsStore.tones, id: \.self) { Text($0.capitalized) }
                 }
@@ -40,7 +53,7 @@ struct SettingsView: View {
             } header: {
                 Text("AI polish")
             } footer: {
-                Text("Runs entirely on this Mac via Ollama on 127.0.0.1 — used only for dictations of 8+ words, and only when the Ollama server is running. Tone example: \u{201C}Slack\u{201D} → Casual.")
+                Text("Runs entirely on this Mac — dictations of 8+ words only. Point it at any GGUF chat model you already have (a file, or a folder of models — LM Studio's folder works as-is); a running Ollama server is the fallback engine. Tone example: \u{201C}Slack\u{201D} → Casual.")
                     .foregroundStyle(.secondary)
                     .font(.callout)
             }

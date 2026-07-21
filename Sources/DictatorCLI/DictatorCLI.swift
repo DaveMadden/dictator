@@ -56,12 +56,14 @@ struct DictatorCLI {
 
     static func polish(text: String) async {
         guard !text.isEmpty else {
-            FileHandle.standardError.write(Data("usage: DictatorCLI polish \"<text>\"\n".utf8))
+            FileHandle.standardError.write(
+                Data("usage: DictatorCLI polish \"<text>\" [model-file-or-folder]\n".utf8))
             exit(64)
         }
-        guard let modelURL = LlamaEngine.sideloadedModelURL() else {
+        let customPath = CommandLine.arguments.count > 3 ? CommandLine.arguments[3] : nil
+        guard let modelURL = LlamaEngine.resolveModelURL(customPath: customPath) else {
             FileHandle.standardError.write(
-                Data("no .gguf found in \(LlamaEngine.modelsDirectory.path)\n".utf8))
+                Data("no GGUF model found (looked in \(customPath ?? LlamaEngine.modelsDirectory.path))\n".utf8))
             exit(1)
         }
         do {

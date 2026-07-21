@@ -80,11 +80,15 @@ and false-start removal, self-correction resolution ("Tuesday, no wait,
 Wednesday" → "Wednesday"), and per-app tone matching. Two engines, tried in
 order:
 
-1. **Embedded llama.cpp** (recommended, no installs): drop any GGUF chat
-   model into `~/Library/Application Support/Dictator/llm/` — e.g.
-   Qwen3-4B-Instruct Q4 (~2.5GB) — and it is loaded automatically. Inference
-   runs in-process via Metal; the model file can come from anywhere your
-   policies allow (Hugging Face, an internal Artifactory, USB).
+1. **Embedded llama.cpp** (recommended, no installs): point Settings →
+   AI polish at any GGUF chat model you already have — a specific file (any
+   filename, even Ollama's extension-less blobs) or a folder of models
+   (LM Studio's models folder works as-is). No copying multi-GB files
+   around. Left blank, it falls back to scanning
+   `~/Library/Application Support/Dictator/llm/`, so drop-a-file-in-a-folder
+   still works. Inference runs in-process via Metal; e.g.
+   Qwen3-4B-Instruct Q4 (~2.5GB) from wherever your policies allow
+   (Hugging Face, an internal Artifactory, USB).
 2. **Ollama fallback**: if no GGUF is sideloaded but an Ollama server is
    running on `127.0.0.1:11434`, that is used instead.
 
