@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hotkeyActive = false
     private var currentHotkey = Hotkey.saved
     private var currentMode = ActivationMode.saved
+    private var sessionLocked = false
     private var permissionPollTimer: Timer?
     private var modelMenuItem: NSMenuItem!
     private var modelStatus = "Model: loading…"
@@ -36,20 +37,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkey.hotkey = currentHotkey
         hotkey.onPress = { [weak self] in
             guard let self else { return }
-            switch self.currentMode {
-            case .hold:
+            if self.controller.state == .idle {
+                self.sessionLocked = false
                 self.controller.beginDictation()
-            case .toggle:
-                if self.controller.state == .idle {
-                    self.controller.beginDictation()
-                } else {
-                    self.controller.endDictation()
-                }
+            } else {
+                // Stops a toggle-mode or hands-free-locked session.
+                self.sessionLocked = false
+                self.controller.endDictation()
             }
         }
         hotkey.onRelease = { [weak self] in
-            guard let self, self.currentMode == .hold else { return }
+            guard let self, self.currentMode == .hold, !self.sessionLocked else { return }
             self.controller.endDictation()
+        }
+        hotkey.onLock = { [weak self] in
+            guard let self, self.currentMode == .hold,
+                  self.controller.state == .recording, !self.sessionLocked else { return }
+            self.sessionLocked = true
+            self.controller.showHandsFreeLock()
         }
         startHotkey()
         render(state: .idle)

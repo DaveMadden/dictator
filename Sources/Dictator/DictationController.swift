@@ -33,6 +33,10 @@ final class DictationController {
     private var updatesTask: Task<Void, Never>?
     private var recordingCapTimer: Timer?
 
+    func showHandsFreeLock() {
+        pill.update(locked: true)
+    }
+
     func warmUpModel() {
         onModelStatus?("Model: loading…")
         Task { @MainActor in

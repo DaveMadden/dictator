@@ -16,8 +16,13 @@ final class OverlayPill {
         model.text = ""
         model.message = ""
         model.level = 0
+        model.locked = false
         model.phase = .recording
         show()
+    }
+
+    func update(locked: Bool) {
+        model.locked = locked
     }
 
     func showProcessing() {
@@ -88,6 +93,7 @@ final class PillModel {
     var level: Float = 0
     var text: String = ""
     var message: String = ""
+    var locked = false
 }
 
 struct PillView: View {
@@ -114,7 +120,7 @@ struct PillView: View {
             EmptyView()
         case .recording:
             HStack(spacing: 10) {
-                Image(systemName: "mic.fill")
+                Image(systemName: model.locked ? "lock.fill" : "mic.fill")
                     .foregroundStyle(.red)
                 LevelBars(level: model.level)
                 Text(model.text.isEmpty ? "Listening…" : model.text)

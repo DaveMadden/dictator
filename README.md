@@ -2,7 +2,10 @@
 
 Fully local push-to-talk dictation for macOS. Hold the hotkey (`fn` by
 default — Right Shift/Command/Option also available from the menu bar → Hotkey),
-speak, release — text appears at your cursor in whatever app you're using. All speech recognition and
+speak, release — text appears at your cursor in whatever app you're using.
+While holding, tap **Space** to lock hands-free recording (the pill shows a
+lock); tap the hotkey again to finish. A tap-to-toggle mode is also available
+under menu → Activation. All speech recognition and
 formatting runs on-device; the app makes **zero network calls at runtime**.
 
 See [PLAN.md](PLAN.md) for the full architecture and roadmap.
