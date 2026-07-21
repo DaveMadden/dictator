@@ -124,6 +124,10 @@ final class DictationController {
                 // the dictation is already recoverable from History.
                 HistoryStore.shared.add(raw: text, text: final, app: context.appName)
                 final = await polishIfPossible(final, context: context)
+                // The polish model sometimes emits markdown-style soft breaks
+                // (trailing spaces before a newline); normalize them away.
+                final = final.replacingOccurrences(
+                    of: " +\\n", with: "\n", options: .regularExpression)
                 HistoryStore.shared.updateLastText(final)
                 if !injector.paste(final) {
                     report("A password field is focused — not pasting (text is in History)")

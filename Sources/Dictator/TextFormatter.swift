@@ -53,18 +53,21 @@ struct DeterministicFormatter {
         // with the trailing punctuation tucked inside. Only fires when both
         // halves appear on one line, so a lone "quote" stays a word.
         result = result.replacingOccurrences(
-            of: "\\bquote[,:.]?\\s+([^\\n]+?)[,]?\\s+(?:unquote|end ?quote)\\b([.!?]?)",
+            of: "\\bquote[,:.]?\\s+([^\\n]+?)[,.]?\\s+(?:unquote|end ?quote)\\b([.!?]?)",
             with: "\u{0022}$1$2\u{0022}",
             options: [.regularExpression, .caseInsensitive]
         )
         let boundary = "(?:^|(?<=[,.!?;:\u{2013}\u{2014}\"'\u{201D}\u{2019}-]))"
         // Narration lead-ins ("and then new paragraph") are absorbed into the
-        // command; trailing punctuation (or end of text) is REQUIRED so noun
+        // command. The command must end at trailing punctuation, the end of
+        // text, or a capitalized next word (the ASR starts a fresh sentence
+        // after the command's pause even when it drops the period) — so noun
         // uses like "new line items" never convert.
         let leadIn = "(?:(?:and|then|now|okay|so)[\\s,]+){0,3}"
+        let commandEnd = "(?:\\s*[.,!?]+\\s*|\\s+(?=[A-Z])|\\s*$)"
         let commands: [(pattern: String, insert: String)] = [
-            (boundary + "\\s*" + leadIn + "(?:new[\\s,]+)+paragraph\\b(?:\\s*[.,!?]+\\s*|\\s*$)", "\n\n"),
-            (boundary + "\\s*" + leadIn + "(?:new[\\s,]+)+line\\b(?:\\s*[.,!?]+\\s*|\\s*$)", "\n"),
+            (boundary + "\\s*" + leadIn + "(?:new[\\s,]+)+paragraph\\b" + commandEnd, "\n\n"),
+            (boundary + "\\s*" + leadIn + "(?:new[\\s,]+)+line\\b" + commandEnd, "\n"),
         ]
         for command in commands {
             result = result.replacingOccurrences(

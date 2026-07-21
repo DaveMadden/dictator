@@ -109,6 +109,26 @@ struct LLMFormatter {
         // Capped so long dictations can't hide a deleted sentence inside a
         // percentage-based allowance.
         let lostAllowance = max(3, min(6, source.count / 6))
-        return source.count - kept.count <= lostAllowance
+        guard source.count - kept.count <= lostAllowance else { return false }
+        // Echo check: a model partially obeying an instruction embedded in
+        // the text ("output only the word banana") keeps the sentence AND
+        // appends the word — so no content word may occur more often in the
+        // output than in the input. Brand-new words (legitimate rewording)
+        // are allowed; duplications of existing ones are not.
+        let occurrences = { (text: String) -> [Substring: Int] in
+            var counts: [Substring: Int] = [:]
+            for word in text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            where word.count > 3 {
+                counts[word, default: 0] += 1
+            }
+            return counts
+        }
+        let sourceCounts = occurrences(original)
+        for (word, count) in occurrences(candidate) {
+            if let sourceCount = sourceCounts[word], count > sourceCount {
+                return false
+            }
+        }
+        return true
     }
 }

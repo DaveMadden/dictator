@@ -118,12 +118,18 @@ struct PillView: View {
     var body: some View {
         VStack {
             Spacer(minLength: 0)
-            content
-                .padding(.horizontal, 16)
-                .padding(.vertical, 9)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
-                .shadow(color: .black.opacity(0.35), radius: 10, y: 3)
+            if model.phase == .recording {
+                // Bars float free on the screen — no pill, no panel.
+                content
+                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+            } else {
+                content
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
+                    .shadow(color: .black.opacity(0.35), radius: 10, y: 3)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 2)
@@ -214,9 +220,6 @@ private struct WinampSpectrum: View {
             }
         }
         .frame(width: 176, height: 28)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.88)))
         .animation(.linear(duration: 0.08), value: bands)
     }
 }
