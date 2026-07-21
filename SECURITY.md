@@ -11,6 +11,12 @@ can open a network connection, writes no audio to disk, and depends on no
 online service. Everything below is the detail behind that sentence, including
 the parts that are less tidy than the summary.
 
+Two sections are worth reading before forming a view: **§4 (network posture)**,
+which states exactly what is and is not in the binary and how to verify it
+independently, and **§8 (models and supply chain)**, which traces where the
+speech model comes from and compares this project's dependency surface against
+the software an organization already relies on daily.
+
 ---
 
 ## 1. What the app is, and why it exists
@@ -251,40 +257,121 @@ default build, which cannot do it at all.
 Dictation requires a speech model. This is inherent — there is no such thing
 as offline speech recognition without one.
 
-**Speech (required): NVIDIA Parakeet TDT 0.6B v3**, CC-BY-4.0, converted to
-Apple's CoreML format by the FluidAudio project. Roughly 470MB on disk. A
-CoreML model is a compiled computation graph plus weights — it describes
-arithmetic over tensors. It is not executable code, has no network primitives,
-and cannot initiate I/O; it takes audio samples in and returns text.
+### What the model is, precisely
 
-**How it gets onto a machine** — three options, and the choice is yours:
+**NVIDIA Parakeet TDT 0.6B v3**, licensed CC-BY-4.0, in Apple's CoreML format.
+Roughly 470MB. The exact provenance chain, stated precisely because "it's
+NVIDIA's model" would be a slight overstatement:
 
-1. **From this repository.** `make install-models-from-repo` fetches the model
-   from this repo's `models` branch, verifies a SHA-256 checksum, and installs
-   it. The only host contacted is GitHub.
+1. **NVIDIA** trains and publishes Parakeet TDT 0.6B v3 (CC-BY-4.0) as a
+   NeMo/PyTorch model.
+2. **FluidInference** — the maintainers of the FluidAudio library — convert
+   those weights to CoreML so they can run on Apple's Neural Engine, and
+   publish the result at
+   `huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml`.
+3. **This project** uses that conversion. A copy is committed to this repo's
+   `models` branch with a SHA-256 checksum.
+
+So the weights originate at NVIDIA; the CoreML packaging is third-party. Both
+links are ordinary (see "Evaluating this" below), but a reviewer deserves the
+distinction rather than a summary that glosses it.
+
+**A CoreML model is data, not code.** It is a compiled computation graph plus
+weights — a description of arithmetic over tensors. It has no network
+primitives, cannot initiate I/O, and cannot execute arbitrary instructions. It
+takes audio samples in and returns text. This distinction matters when
+comparing it to the software dependencies an organization already accepts,
+which *are* executable code.
+
+### Integrity vs. provenance — an honest distinction
+
+The SHA-256 published alongside the model in this repo guarantees **integrity**:
+the file has not changed since it was placed there, and a corrupted or
+substituted copy fails the check.
+
+It does not by itself establish **provenance** — that the file matches what
+FluidInference published upstream. Verifying that link means comparing against
+the upstream repository's own hashes. That is a reasonable thing to require,
+and it is exactly what option 2 below is for.
+
+### How it gets onto a machine
+
+Four options; the choice is yours, and none require code changes:
+
+1. **From this repository.** `make install-models-from-repo` fetches from the
+   `models` branch, verifies the checksum, installs. Only GitHub is contacted.
 2. **From a location you control.** Settings → Models accepts any path, so a
-   copy your team has vetted and hosts internally (Artifactory, a share) can be
-   used instead. The app does not care where the folder lives.
+   copy your team has independently vetted and hosts internally (Artifactory, a
+   file share) is used directly. **This is the intended path if models must be
+   approved before use.**
 3. **Offline transfer.** `make export-models` produces a verifiable tarball
-   that can move by USB or AirDrop and be installed with
-   `make install-models FILE=…`.
-
-If your process requires that models be independently vetted before use,
-option 2 is the intended path and requires no code changes.
+   that moves by USB or AirDrop, installed with `make install-models FILE=…`.
+4. **Through an internal registry mirror.** The FluidAudio library reads a
+   `REGISTRY_URL` / `MODEL_REGISTRY_URL` environment variable, so an
+   organization mirroring Hugging Face internally can point the downloader at
+   that mirror. (Relevant only to `DICTATOR_DOWNLOAD=1` builds; the default
+   build has no downloader at all.)
 
 ### Build-time dependencies
 
-Building the app fetches, from GitHub only:
+The default build has **one** direct dependency and **zero** transitive ones:
 
-- **FluidAudio** (Apache-2.0) — runs the CoreML speech model.
+- **FluidAudio** (Apache-2.0) — runs the CoreML speech model. FluidAudio
+  itself declares no external package dependencies.
 - **llama.cpp** (MIT) — *only* when building with `DICTATOR_LLM=1`.
 
-Both are pinned in [Package.resolved](Package.resolved); the llama.cpp binary
+Both are pinned in [Package.resolved](Package.resolved). The llama.cpp binary
 is pinned to a specific release **and** a SHA-256 checksum in
 [Package.swift](Package.swift), so a substituted artifact fails the build.
+Everything is fetched from GitHub. Installing Apple's Command Line Tools (a
+prerequisite) contacts Apple. After the build, running the app contacts
+nothing.
 
-Installing Apple's Command Line Tools (a prerequisite) contacts Apple. After
-the build completes, running the app contacts nothing.
+### Evaluating this against standard practice
+
+Two facts about this project can look alarming out of context: it uses a model
+distributed via Hugging Face, and that model was format-converted by a party
+other than the original publisher. Both are the normal, expected shape of
+Apple Silicon ML tooling, and it is worth establishing that baseline before
+weighing them.
+
+**Hugging Face is the standard registry for open models** — the equivalent of
+npm for JavaScript, PyPI for Python, or Maven Central for Java. NVIDIA
+publishes Parakeet there officially. Apple maintains its own organization there
+and distributes CoreML-converted models from it. Treating the channel itself as
+disqualifying would rule out effectively all on-device ML, including Apple's
+own published artifacts.
+
+**Format conversion is mandatory on Apple Silicon, not a shortcut.** Models are
+published in training formats (PyTorch, NeMo) that do not run efficiently on
+the Neural Engine. Apple ships an official toolchain — Core ML Tools — whose
+entire purpose is this conversion. Every on-device ML application on macOS
+consumes a converted model. The only question is who performed the conversion,
+which is why the chain is spelled out explicitly above.
+
+**The useful comparison** is not "does this touch the internet at all," but
+"is this handled at least as carefully as the dependencies already in daily
+use here?" By each measure a reviewer would normally apply:
+
+| | Typical application | Dictator (default build) |
+|---|---|---|
+| Direct dependencies | dozens to hundreds | **1** |
+| Transitive dependencies | frequently 1,000+ | **0** |
+| What they contain | executable code, runs with full app privileges | one library, plus one data file that cannot execute |
+| Version pinning | floating semver ranges, common | exact versions **+ SHA-256** |
+| Post-install network access | routine and expected | **none** — verifiable with `make audit` |
+| Ability to audit in full | impractical at scale | ~2,100 lines, readable in an afternoon |
+
+A single pinned, checksummed dependency with no transitive graph and no runtime
+network access is a materially *smaller* attack surface than a typical internal
+web service, a Node or Python application, or any Electron-based desktop tool —
+all of which are routinely approved. This project is not asking for an
+exception to normal standards; it is asking to be measured by them.
+
+If a specific requirement here is not yet met — independent verification of
+model hashes against upstream, hosting the model internally, vendoring
+FluidAudio to strip its unused downloader — each is tractable, and §4 and this
+section describe the mechanisms that already exist to support them.
 
 ---
 
