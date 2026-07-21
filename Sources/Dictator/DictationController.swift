@@ -31,7 +31,6 @@ final class DictationController {
     private var pressActive = false
     private var streamingActive = false
     private var forwardTask: Task<Void, Never>?
-    private var updatesTask: Task<Void, Never>?
     private var recordingCapTimer: Timer?
 
     func showHandsFreeLock() {
@@ -69,7 +68,7 @@ final class DictationController {
                     let buffers = try self.audio.start()
                     self.state = .recording
                     self.pill.showRecording()
-                    self.audio.onLevel = { [weak self] level in self?.pill.update(level: level) }
+                    self.audio.onSpectrum = { [weak self] bands in self?.pill.update(spectrum: bands) }
                     self.startStreaming(buffers: buffers)
                     self.startRecordingCapTimer()
                 } catch {
@@ -84,14 +83,13 @@ final class DictationController {
         guard state == .recording else { return }
         recordingCapTimer?.invalidate()
         recordingCapTimer = nil
-        audio.onLevel = nil
+        audio.onSpectrum = nil
         let samples = audio.stop()
         state = .processing
         pill.showProcessing()
         Task { @MainActor in
             var text = ""
             await forwardTask?.value
-            updatesTask?.cancel()
             if streamingActive {
                 do {
                     text = try await transcriber.finishStream()
@@ -194,21 +192,8 @@ final class DictationController {
         streamingActive = false
         forwardTask = Task { @MainActor in
             do {
-                let updates = try await transcriber.startStream()
+                try await transcriber.startStream()
                 self.streamingActive = true
-                self.updatesTask = Task { @MainActor in
-                    var confirmed = ""
-                    var volatile = ""
-                    for await update in updates {
-                        if update.isConfirmed {
-                            confirmed += update.text
-                            volatile = ""
-                        } else {
-                            volatile = update.text
-                        }
-                        self.pill.update(text: confirmed + volatile)
-                    }
-                }
                 // Single sequential consumer keeps buffers in arrival order;
                 // the stream buffers anything captured while the session spun up.
                 for await buffer in buffers {

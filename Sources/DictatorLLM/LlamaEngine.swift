@@ -124,7 +124,7 @@ public final class LlamaEngine {
     }
 
     private func applyTemplate(system: String, user: String) throws -> String {
-        var cStrings: [UnsafeMutablePointer<CChar>?] = [
+        let cStrings: [UnsafeMutablePointer<CChar>?] = [
             strdup("system"), strdup(system), strdup("user"), strdup(user),
         ]
         defer { cStrings.forEach { free($0) } }

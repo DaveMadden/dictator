@@ -38,7 +38,7 @@ actor ParakeetTranscriber: Transcriber {
 
     // MARK: Streaming
 
-    func startStream() async throws -> AsyncStream<StreamingTranscriptionUpdate> {
+    func startStream() async throws {
         if let stale = stream {
             await stale.cancel()
             stream = nil
@@ -47,7 +47,6 @@ actor ParakeetTranscriber: Transcriber {
         let session = StreamingAsrManager(config: .streaming)
         try await session.start(models: models, source: .microphone)
         stream = session
-        return await session.transcriptionUpdates
     }
 
     func feed(_ buffer: AVAudioPCMBuffer) async {
