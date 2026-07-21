@@ -125,7 +125,16 @@ final class SpectrumAnalyzer {
     /// lifts high bands so fricatives register despite their lower energy.
     private static let floorDB: Float = -18
     private static let rangeDB: Float = 30
-    private static let highTiltDB: Float = 3
+
+    /// Speech power concentrates below ~500 Hz (the first ~6 of these log
+    /// bands), so the low end gets a cut tapering to flat by mid-scale, plus
+    /// a small treble lift for fricatives — levels normal speech across the
+    /// display instead of pegging the bass third.
+    private static let bandGainDB: [Float] = (0..<bandCount).map { band in
+        let lowCut: Float = band < 6 ? -12 * (6 - Float(band)) / 6 : 0
+        let highLift: Float = 3 * Float(band) / Float(bandCount - 1)
+        return lowCut + highLift
+    }
 
     private let fftSize = 512
     private let log2n = vDSP_Length(9)
@@ -189,8 +198,7 @@ final class SpectrumAnalyzer {
             for bin in lo..<hi {
                 sum += magnitudes[bin]
             }
-            let tilt = Self.highTiltDB * Float(band) / Float(Self.bandCount - 1)
-            let db = 10 * log10(sum / Float(hi - lo) + 1e-9) + tilt
+            let db = 10 * log10(sum / Float(hi - lo) + 1e-9) + Self.bandGainDB[band]
             out[band] = min(1, max(0, (db - Self.floorDB) / Self.rangeDB))
         }
         return out
