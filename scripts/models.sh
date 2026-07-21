@@ -25,6 +25,22 @@ export)
     echo "wrote build/dictator-models-v3.tar.gz ($(du -h build/dictator-models-v3.tar.gz | cut -f1))"
     echo "ship it via GitHub Release, AirDrop, or USB, then: make install-models FILE=<path>"
     ;;
+install-from-repo)
+    # Pulls the chunked tarball from this repo's `models` branch on GitHub,
+    # so no host other than GitHub is ever contacted.
+    git fetch origin models
+    TMP="$(mktemp -d)"
+    trap 'rm -rf "$TMP"' EXIT
+    git archive origin/models chunks | tar -x -C "$TMP"
+    cat "$TMP"/chunks/dictator-models-v3.tar.gz.part-* > "$TMP/dictator-models-v3.tar.gz"
+    EXPECTED="$(cat "$TMP"/chunks/dictator-models-v3.tar.gz.sha256)"
+    ACTUAL="$(shasum -a 256 "$TMP/dictator-models-v3.tar.gz" | awk '{print $1}')"
+    if [ "$EXPECTED" != "$ACTUAL" ]; then
+        echo "checksum mismatch — refusing to install (expected $EXPECTED, got $ACTUAL)" >&2
+        exit 1
+    fi
+    "$0" install "$TMP/dictator-models-v3.tar.gz"
+    ;;
 install)
     FILE="${2:-}"
     if [ ! -f "$FILE" ]; then
@@ -37,7 +53,7 @@ install)
     echo "Dictator will load these on launch — no network access needed, ever"
     ;;
 *)
-    echo "usage: models.sh {export|install <file>}" >&2
+    echo "usage: models.sh {export|install <file>|install-from-repo}" >&2
     exit 1
     ;;
 esac

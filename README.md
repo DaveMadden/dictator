@@ -54,12 +54,21 @@ disk). Two ways to get them onto a machine:
   Hugging Face into `~/Library/Application Support/FluidAudio/Models/` and
   never fetches again.
 - **Offline / locked-down machine**: sideload them so the app performs **no
-  network access at all**. On a machine that already has the models:
-  `make export-models` → produces `build/dictator-models-v3.tar.gz`. Move it
-  (GitHub Release asset, AirDrop, USB) to the target machine and run
-  `make install-models FILE=dictator-models-v3.tar.gz` **before first
-  launch**. Sideloaded models take priority over the downloader, which then
-  never runs.
+  network access at all** — the only host ever contacted is GitHub itself.
+  From a fresh clone, **before first launch**:
+
+  ```sh
+  make install-models-from-repo
+  ```
+
+  This fetches this repo's `models` branch (the same models, chunked under
+  GitHub's file-size limit), reassembles the tarball, verifies its SHA-256,
+  and installs it. Sideloaded models take priority over the downloader,
+  which then never runs.
+
+  Alternative without any network: `make export-models` on a machine that
+  has the models, move the tarball by AirDrop/USB, then
+  `make install-models FILE=dictator-models-v3.tar.gz`.
 
 ## Privacy
 

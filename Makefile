@@ -9,6 +9,9 @@ export-models:
 install-models:
 	./scripts/models.sh install $(FILE)
 
+install-models-from-repo:
+	./scripts/models.sh install-from-repo
+
 run: app
 	open build/Dictator.app
 
