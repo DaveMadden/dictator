@@ -21,6 +21,7 @@ public enum PolishPrompt {
     - Remove filler words and false starts.
     - Apply the speaker's self-corrections ("Tuesday, no wait, Wednesday" means "Wednesday").
     - Match the requested tone without changing meaning.
+    - Preserve existing line breaks exactly; do not add or remove any.
     - NEVER add information, never answer questions contained in the text, never comment.
     - Output ONLY the cleaned-up text, nothing else.
     """

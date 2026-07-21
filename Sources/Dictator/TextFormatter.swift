@@ -41,14 +41,18 @@ struct DeterministicFormatter {
         return words.joined(separator: " ")
     }
 
-    /// "new line" / "new paragraph" become actual breaks. The model usually
-    /// punctuates around them ("Hello. New line. Next"), so surrounding
-    /// punctuation is absorbed and the following sentence re-capitalized.
+    /// "new line" / "new paragraph" become actual breaks. A phrase only
+    /// counts as a command when it stands alone — immediately after
+    /// punctuation (how the ASR renders the pause around a spoken command)
+    /// or at the start of the dictation. Mid-sentence mentions ("this should
+    /// be a new paragraph") keep their words, and stuttered repeats
+    /// ("new new paragraph") collapse into one command.
     private func applySpokenCommands(_ text: String) -> String {
         var result = text
+        let boundary = "(?:^|(?<=[,.!?;:\u{2013}\u{2014}\"'\u{201D}\u{2019}-]))"
         let commands: [(pattern: String, insert: String)] = [
-            ("[,.]?\\s*\\bnew paragraph\\b[,.]?\\s*", "\n\n"),
-            ("[,.]?\\s*\\bnew line\\b[,.]?\\s*", "\n"),
+            (boundary + "\\s*(?:new[\\s,]+)+paragraph\\b[,.!?]?\\s*", "\n\n"),
+            (boundary + "\\s*(?:new[\\s,]+)+line\\b[,.!?]?\\s*", "\n"),
         ]
         for command in commands {
             result = result.replacingOccurrences(
