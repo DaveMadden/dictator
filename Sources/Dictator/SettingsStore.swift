@@ -70,7 +70,9 @@ final class SettingsStore {
         spokenCommands = defaults.object(forKey: "spokenCommands") as? Bool ?? true
         launchAtLogin = SMAppService.mainApp.status == .enabled
         llmEnabled = defaults.object(forKey: "llmEnabled") as? Bool ?? true
-        llmModel = defaults.string(forKey: "llmModel") ?? "qwen3:4b"
+        // The bare qwen3:4b tag resolves to a thinking-mode build that takes
+        // minutes per reply; the instruct variant answers in ~1s.
+        llmModel = defaults.string(forKey: "llmModel") ?? "qwen3:4b-instruct"
         defaultTone = defaults.string(forKey: "defaultTone") ?? "neutral"
         if let data = defaults.data(forKey: "appTones"),
            let decoded = try? JSONDecoder().decode([AppTone].self, from: data) {
