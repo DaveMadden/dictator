@@ -14,7 +14,7 @@ struct SettingsView: View {
                 Toggle("Spoken commands (\u{201C}new line\u{201D}, \u{201C}new paragraph\u{201D})", isOn: $store.spokenCommands)
             }
             Section {
-                Toggle("Polish with local AI", isOn: $store.llmEnabled)
+                Toggle("Use a local AI model for polish (experimental, off by default)", isOn: $store.llmEnabled)
                 HStack(spacing: 8) {
                     TextField("Model file or folder (blank = App Support/Dictator/llm)", text: $store.llmModelPath)
                     Button("Choose…") {

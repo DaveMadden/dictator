@@ -79,12 +79,18 @@ speech models onto a machine:
   that's acceptable. (The developer CLI's transcribe smoke test may also
   download; the app itself never does unless this toggle is on.)
 
-## AI polish (optional)
+## AI polish (optional, off by default)
 
-Dictations of 8+ words can be cleaned up by a local LLM: punctuation, filler
-and false-start removal, self-correction resolution ("Tuesday, no wait,
-Wednesday" → "Wednesday"), and per-app tone matching. Two engines, tried in
-order:
+Dictations of 8+ words can additionally be cleaned up by a local LLM:
+self-correction resolution ("Tuesday, no wait, Wednesday" → "Wednesday"),
+context-aware fixes, and per-app tone matching. **It ships disabled**: in
+real-world testing a 4B model fixed less than it risked (missed most
+self-corrections, occasionally paraphrased or obeyed instructions embedded
+in the dictation — the latter now blocked by output guards). The
+deterministic pipeline (fillers, spoken commands, quotes, dictionary) plus
+Parakeet's own punctuation covers most needs at ~200ms. Enable the toggle
+in Settings and point Settings → Models at a GGUF to experiment — a larger
+(8B+) model may well tip the tradeoff. Two engines, tried in order:
 
 1. **Embedded llama.cpp** (recommended, no installs): point Settings →
    Models at any GGUF chat model you already have — a specific file (any

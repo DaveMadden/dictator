@@ -90,7 +90,10 @@ final class SettingsStore {
         removeFillers = defaults.object(forKey: "removeFillers") as? Bool ?? true
         spokenCommands = defaults.object(forKey: "spokenCommands") as? Bool ?? true
         launchAtLogin = SMAppService.mainApp.status == .enabled
-        llmEnabled = defaults.object(forKey: "llmEnabled") as? Bool ?? true
+        // Off by default: in real use the polish model fixed less than it
+        // broke (unreliable self-corrections, paraphrasing, injection
+        // obedience). Opt-in via Settings for anyone who wants to experiment.
+        llmEnabled = defaults.object(forKey: "llmEnabled") as? Bool ?? false
         // The bare qwen3:4b tag resolves to a thinking-mode build that takes
         // minutes per reply; the instruct variant answers in ~1s.
         llmModel = defaults.string(forKey: "llmModel") ?? "qwen3:4b-instruct"
