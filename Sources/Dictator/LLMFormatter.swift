@@ -106,7 +106,9 @@ struct LLMFormatter {
         }
         // Self-corrections legitimately drop a few words ("Tuesday, no wait,"),
         // but losing more than a handful means whole clauses went missing.
-        let lostAllowance = max(3, source.count / 5)
+        // Capped so long dictations can't hide a deleted sentence inside a
+        // percentage-based allowance.
+        let lostAllowance = max(3, min(6, source.count / 6))
         return source.count - kept.count <= lostAllowance
     }
 }

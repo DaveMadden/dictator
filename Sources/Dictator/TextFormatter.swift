@@ -58,9 +58,13 @@ struct DeterministicFormatter {
             options: [.regularExpression, .caseInsensitive]
         )
         let boundary = "(?:^|(?<=[,.!?;:\u{2013}\u{2014}\"'\u{201D}\u{2019}-]))"
+        // Narration lead-ins ("and then new paragraph") are absorbed into the
+        // command; trailing punctuation (or end of text) is REQUIRED so noun
+        // uses like "new line items" never convert.
+        let leadIn = "(?:(?:and|then|now|okay|so)[\\s,]+){0,3}"
         let commands: [(pattern: String, insert: String)] = [
-            (boundary + "\\s*(?:new[\\s,]+)+paragraph\\b[,.!?]?\\s*", "\n\n"),
-            (boundary + "\\s*(?:new[\\s,]+)+line\\b[,.!?]?\\s*", "\n"),
+            (boundary + "\\s*" + leadIn + "(?:new[\\s,]+)+paragraph\\b(?:\\s*[.,!?]+\\s*|\\s*$)", "\n\n"),
+            (boundary + "\\s*" + leadIn + "(?:new[\\s,]+)+line\\b(?:\\s*[.,!?]+\\s*|\\s*$)", "\n"),
         ]
         for command in commands {
             result = result.replacingOccurrences(

@@ -4,9 +4,9 @@ import DictatorLLM
 import FluidAudio
 
 /// Orchestrates one dictation cycle: hotkey down starts capture and a
-/// streaming transcription session (live preview in the pill); hotkey up
-/// finishes the stream and injects the formatted result. If streaming fails,
-/// the accumulated 16 kHz buffer is batch-transcribed instead.
+/// streaming transcription session that feeds the pill's live preview;
+/// hotkey up batch-decodes the full recording (streaming text is only a
+/// fallback), formats, polishes, and injects the result.
 final class DictationController {
     enum State { case idle, recording, processing }
 
@@ -88,27 +88,34 @@ final class DictationController {
         state = .processing
         pill.showProcessing()
         Task { @MainActor in
-            var text = ""
             await forwardTask?.value
+            // Streaming powers the live preview only. The sliding-window
+            // stitcher garbles chunk seams on long takes (dropped spans,
+            // "renewal" → "renewed.al"), so the final text always comes from
+            // a full-context batch decode of the complete recording; the
+            // stream's text is kept solely as a fallback.
+            var streamText = ""
             if streamingActive {
                 do {
-                    text = try await transcriber.finishStream()
+                    streamText = try await transcriber.finishStream()
                 } catch {
-                    NSLog("Dictator: streaming finish failed, falling back to batch: %@", "\(error)")
+                    NSLog("Dictator: streaming finish failed: %@", "\(error)")
                 }
             }
-            if text.isEmpty {
-                let trimmed = AudioEngine.trimSilence(samples)
-                do {
-                    text = try await transcriber.transcribe(
-                        samples: trimmed,
-                        sampleRate: AudioEngine.sampleRate
-                    )
-                } catch {
-                    report("Transcription failed: \(error.localizedDescription)")
-                    state = .idle
-                    return
-                }
+            var text = ""
+            do {
+                text = try await transcriber.transcribe(
+                    samples: AudioEngine.trimSilence(samples),
+                    sampleRate: AudioEngine.sampleRate
+                )
+            } catch {
+                NSLog("Dictator: batch decode failed (%@), using streaming text", "\(error)")
+            }
+            if text.isEmpty { text = streamText }
+            if text.isEmpty, streamText.isEmpty, samples.count > Int(AudioEngine.sampleRate) {
+                report("Transcription produced no text")
+                state = .idle
+                return
             }
             var final = formatter.format(text)
             if !final.isEmpty {
