@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var recentMenu: NSMenu!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        terminateOtherInstances()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         controller.onStateChange = { [weak self] state in self?.render(state: state) }
         controller.onModelStatus = { [weak self] status in self?.modelStatus = status }
@@ -60,6 +61,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         startHotkey()
         render(state: .idle)
+    }
+
+    /// The same bundle id can run from two paths (a dev build in build/ and
+    /// the installed copy in /Applications), each adding its own menu bar
+    /// icon and fighting over the hotkey. Newest launch wins.
+    private func terminateOtherInstances() {
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.davidmadden.dictator"
+        let myPID = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter { $0.processIdentifier != myPID }
+        for other in others {
+            NSLog("Dictator: replacing running instance at %@",
+                  other.bundleURL?.path ?? "unknown path")
+            other.terminate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                if !other.isTerminated { other.forceTerminate() }
+            }
+        }
     }
 
     private func startHotkey() {
