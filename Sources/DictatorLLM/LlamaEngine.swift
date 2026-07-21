@@ -184,13 +184,15 @@ public actor LlamaPolisher {
 
     public func polish(
         _ text: String,
-        context: DictationContext,
+        appName: String,
+        precedingText: String,
         tone: String,
         modelURL: URL
     ) async throws -> String {
         let engine = try loadedEngine(modelURL: modelURL)
         let system = PolishPrompt.system
-        let user = PolishPrompt.user(text: text, context: context, tone: tone)
+        let user = PolishPrompt.user(
+            text: text, appName: appName, precedingText: precedingText, tone: tone)
         return try await withCheckedThrowingContinuation { continuation in
             inferenceQueue.async {
                 do {

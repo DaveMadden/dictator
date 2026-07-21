@@ -1,6 +1,8 @@
 import AppKit
-import DictatorLLM
 import SwiftUI
+#if DICTATOR_LLM
+import DictatorLLM
+#endif
 
 struct SettingsView: View {
     @Bindable var store: SettingsStore
@@ -13,6 +15,7 @@ struct SettingsView: View {
                 Toggle("Remove filler words (um, uh…)", isOn: $store.removeFillers)
                 Toggle("Spoken commands (\u{201C}new line\u{201D}, \u{201C}new paragraph\u{201D})", isOn: $store.spokenCommands)
             }
+            #if DICTATOR_LLM
             Section {
                 Toggle("Use a local AI model for polish (experimental, off by default)", isOn: $store.llmEnabled)
                 HStack(spacing: 8) {
@@ -56,10 +59,11 @@ struct SettingsView: View {
             } header: {
                 Text("AI polish")
             } footer: {
-                Text("Runs entirely on this Mac — dictations of 8+ words only. Point it at any GGUF chat model you already have (a file, or a folder of models — LM Studio's folder works as-is); a running Ollama server is the fallback engine. Tone example: \u{201C}Slack\u{201D} → Casual.")
+                Text("Runs entirely on this Mac — dictations of 8+ words only. Point it at any GGUF chat model you already have (a file, or a folder of models — LM Studio's folder works as-is). Tone example: \u{201C}Slack\u{201D} → Casual.")
                     .foregroundStyle(.secondary)
                     .font(.callout)
             }
+            #endif
             Section {
                 ForEach($store.replacements) { $replacement in
                     HStack(spacing: 8) {
@@ -96,7 +100,9 @@ struct SettingsView: View {
     @ViewBuilder
     private var modelsSection: some View {
         let speech = ModelInventory.speechStatus()
+        #if DICTATOR_LLM
         let llmItems = ModelInventory.llmItems()
+        #endif
         Section {
             HStack(spacing: 8) {
                 Image(systemName: speech.found ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -114,6 +120,7 @@ struct SettingsView: View {
                     choosePath(directoriesOnly: true) { store.speechModelDir = $0 }
                 }
             }
+            #if DICTATOR_LLM
             HStack(spacing: 8) {
                 Image(systemName: llmItems.contains(where: \.active) ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                     .foregroundStyle(llmItems.contains(where: \.active) ? .green : .orange)
@@ -152,13 +159,22 @@ struct SettingsView: View {
                     choosePath(directoriesOnly: false) { store.llmModelPath = $0 }
                 }
             }
+            #endif
+            #if DICTATOR_DOWNLOAD
             Toggle("Allow downloading missing speech models (Hugging Face)", isOn: $store.allowModelDownload)
+            #endif
         } header: {
             Text("Models")
         } footer: {
+            #if DICTATOR_DOWNLOAD
             Text("With downloads off (the default), Dictator only loads models from these paths and never touches the network — a missing model is an error, not a download.")
                 .foregroundStyle(.secondary)
                 .font(.callout)
+            #else
+            Text("This build contains no downloader: models load only from these paths, and a missing model is an error. Install them with `make install-models-from-repo`, or point at a vetted copy.")
+                .foregroundStyle(.secondary)
+                .font(.callout)
+            #endif
         }
     }
 

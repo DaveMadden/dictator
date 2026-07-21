@@ -32,6 +32,30 @@ make stop    # quit the app
 make clean
 ```
 
+### Build modes
+
+The default build contains **no inference engine and no downloader** — no code
+that can open a network connection. Two opt-in components are compiled in only
+when explicitly requested:
+
+| Build | Command | Contains |
+|---|---|---|
+| Default | `make app` | Speech recognition only. No LLM, no downloader. |
+| Full | `make app-full` | Adds llama.cpp AI polish + Hugging Face model download |
+
+`make audit` verifies the claim on whatever you built: it lists network calls in
+this project's source (with the compile flag guarding each one), networking
+symbols in the executable, embedded frameworks, and live sockets held by the
+running app. On a default build it reports no reachable network path and no
+open sockets.
+
+One honest note for auditors: the FluidAudio speech library ships its own model
+downloader, so `NSURLSession` symbols link into the binary even in the default
+build. Nothing in Dictator reaches them — `make audit` shows the only
+`downloadAndLoad` call is behind `#if DICTATOR_DOWNLOAD`, and the running app
+opens no sockets. `CFNetwork` arrives via Foundation and is unavoidable in any
+Cocoa app.
+
 ## First-run setup
 
 1. **Accessibility permission** — needed for the global `fn` hotkey and for
@@ -79,7 +103,7 @@ speech models onto a machine:
   that's acceptable. (The developer CLI's transcribe smoke test may also
   download; the app itself never does unless this toggle is on.)
 
-## AI polish (optional, off by default)
+## AI polish (optional, not in the default build)
 
 Dictations of 8+ words can additionally be cleaned up by a local LLM:
 self-correction resolution ("Tuesday, no wait, Wednesday" → "Wednesday"),
@@ -88,27 +112,24 @@ real-world testing a 4B model fixed less than it risked (missed most
 self-corrections, occasionally paraphrased or obeyed instructions embedded
 in the dictation — the latter now blocked by output guards). The
 deterministic pipeline (fillers, spoken commands, quotes, dictionary) plus
-Parakeet's own punctuation covers most needs at ~200ms. Enable the toggle
-in Settings and point Settings → Models at a GGUF to experiment — a larger
-(8B+) model may well tip the tradeoff. Two engines, tried in order:
+Parakeet's own punctuation covers most needs at ~200ms.
 
-1. **Embedded llama.cpp** (recommended, no installs): point Settings →
-   Models at any GGUF chat model you already have — a specific file (any
-   filename, even Ollama's extension-less blobs) or a folder of models
-   (LM Studio's models folder works as-is). The Models section lists every
-   model it can see with sizes and the active one marked; click to switch.
-   No copying multi-GB files around. Left blank, it falls back to scanning
-   `~/Library/Application Support/Dictator/llm/`, so drop-a-file-in-a-folder
-   still works. Inference runs in-process via Metal; e.g.
-   Qwen3-4B-Instruct Q4 (~2.5GB) from wherever your policies allow
-   (Hugging Face, an internal Artifactory, USB).
-2. **Ollama fallback**: if no GGUF is sideloaded but an Ollama server is
-   running on `127.0.0.1:11434`, that is used instead.
+To experiment, build with it compiled in — `make app-full` — then enable the
+toggle in Settings and point Settings → Models at any GGUF chat model you
+already have: a specific file (any filename, even Ollama's extension-less
+blobs) or a folder of models (LM Studio's folder works as-is). The Models
+section lists every model it can see with sizes and marks the active one;
+click to switch. Left blank, it scans
+`~/Library/Application Support/Dictator/llm/`. Inference runs in-process via
+Metal — e.g. Qwen3-4B-Instruct Q4 (~2.5GB) — with no server to install and
+no network access; the model file can come from wherever your policies allow
+(an internal Artifactory, USB, Hugging Face). A larger (8B+) model may well
+tip the tradeoff.
 
-Either way the text never leaves the machine; without either engine, the
-deterministic formatting still applies and dictation works normally. The
-output is guarded: rewrites that deviate implausibly from what was said are
-discarded in favor of the deterministic text.
+The text never leaves the machine. Output is guarded: rewrites that lose
+content, deviate implausibly in length, or echo a word more often than the
+input (a model partially obeying an instruction embedded in the dictation)
+are discarded in favor of the deterministic text.
 
 ## Privacy
 

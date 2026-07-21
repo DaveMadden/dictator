@@ -1,19 +1,7 @@
 import Foundation
 
-/// What the dictation happened into: the frontmost app and (optionally) the
-/// text just before the cursor, both used only to condition the polish prompt.
-public struct DictationContext {
-    public let appName: String
-    public let precedingText: String
-
-    public init(appName: String, precedingText: String) {
-        self.appName = appName
-        self.precedingText = precedingText
-    }
-}
-
-/// The polish instruction shared by every LLM backend (embedded llama.cpp,
-/// Ollama). Strictly rewrite-only by construction.
+/// The polish instruction and its output guards. Shared by every LLM backend.
+/// Strictly rewrite-only by construction.
 public enum PolishPrompt {
     public static let system = """
     You clean up dictated text. Rules:
@@ -29,12 +17,84 @@ public enum PolishPrompt {
     - Output ONLY the cleaned-up text, nothing else.
     """
 
-    public static func user(text: String, context: DictationContext, tone: String) -> String {
-        var prompt = "App being typed into: \(context.appName)\nTone: \(tone)\n"
-        if !context.precedingText.isEmpty {
-            prompt += "Existing text before the cursor (context only, do not repeat it):\n\(context.precedingText)\n"
+    public static func user(
+        text: String,
+        appName: String,
+        precedingText: String,
+        tone: String
+    ) -> String {
+        var prompt = "App being typed into: \(appName)\nTone: \(tone)\n"
+        if !precedingText.isEmpty {
+            prompt += "Existing text before the cursor (context only, do not repeat it):\n\(precedingText)\n"
         }
         prompt += "Dictated text to clean up:\n\(text)"
         return prompt
+    }
+
+    /// Models sometimes wrap output in quotes, fences, or thinking tags.
+    public static func stripWrapping(_ raw: String) -> String {
+        var text = raw
+        if let range = text.range(of: "</think>") {
+            text = String(text[range.upperBound...])
+        }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.hasPrefix("```") {
+            text = text
+                .replacingOccurrences(of: "^```[a-z]*\\n?", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "\\n?```$", with: "", options: .regularExpression)
+        }
+        if text.hasPrefix("\""), text.hasSuffix("\""), text.count > 2 {
+            text = String(text.dropFirst().dropLast())
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Dictation must never say things the user didn't — and must never LOSE
+    /// what they said. Rejects rewrites whose length departs wildly from the
+    /// input, that drop too many of its meaningful words (losing whole
+    /// clauses), or that echo a word more often than the input did (a model
+    /// partially obeying an instruction embedded in the dictation).
+    public static func plausibleRewrite(original: String, candidate: String) -> Bool {
+        guard !candidate.isEmpty, !original.isEmpty else { return false }
+        let ratio = Double(candidate.count) / Double(original.count)
+        guard ratio > 0.6 && ratio < 1.6 else { return false }
+
+        let contentWords = { (text: String) -> Set<String> in
+            Set(
+                text.lowercased()
+                    .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                    .filter { $0.count > 3 }
+                    .map(String.init)
+            )
+        }
+        let source = contentWords(original)
+        guard !source.isEmpty else { return true }
+        let output = contentWords(candidate)
+        let kept = source.filter { word in
+            output.contains(word) || output.contains(word + "s")
+                || (word.hasSuffix("s") && output.contains(String(word.dropLast())))
+        }
+        // Self-corrections legitimately drop a few words ("Tuesday, no wait,"),
+        // but losing more than a handful means whole clauses went missing.
+        // Capped so long dictations can't hide a deleted sentence inside a
+        // percentage-based allowance.
+        let lostAllowance = max(3, min(6, source.count / 6))
+        guard source.count - kept.count <= lostAllowance else { return false }
+
+        let occurrences = { (text: String) -> [Substring: Int] in
+            var counts: [Substring: Int] = [:]
+            for word in text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            where word.count > 3 {
+                counts[word, default: 0] += 1
+            }
+            return counts
+        }
+        let sourceCounts = occurrences(original)
+        for (word, count) in occurrences(candidate) {
+            if let sourceCount = sourceCounts[word], count > sourceCount {
+                return false
+            }
+        }
+        return true
     }
 }

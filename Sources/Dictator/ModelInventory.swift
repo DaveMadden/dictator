@@ -1,6 +1,8 @@
-import DictatorLLM
 import FluidAudio
 import Foundation
+#if DICTATOR_LLM
+import DictatorLLM
+#endif
 
 /// What models exist on disk for each role — powers Settings → Models.
 enum ModelInventory {
@@ -41,6 +43,7 @@ enum ModelInventory {
 
     /// Every polish candidate the app can see: whatever the configured path
     /// resolves to, plus anything in the standard sideload folder.
+    #if DICTATOR_LLM
     static func llmItems() -> [LLMItem] {
         let path = SettingsStore.shared.llmModelPath.trimmingCharacters(in: .whitespaces)
         let active = LlamaEngine.resolveModelURL(customPath: path)
@@ -62,6 +65,9 @@ enum ModelInventory {
             LLMItem(url: url, sizeBytes: fileSize(url), active: url.path == active?.path)
         }
     }
+    #else
+    static func llmItems() -> [LLMItem] { [] }
+    #endif
 
     static func abbreviate(_ url: URL) -> String {
         url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")

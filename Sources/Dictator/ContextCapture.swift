@@ -1,13 +1,27 @@
 import AppKit
 import ApplicationServices
-import DictatorLLM
+
+/// What the dictation happened into: the frontmost app, and (only when the
+/// optional polish stage is compiled in) the text just before the cursor.
+/// Both are used in-memory for the current utterance and never stored.
+struct DictationContext {
+    let appName: String
+    let precedingText: String
+}
 
 enum ContextCapture {
     static func capture() -> DictationContext {
         let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? "unknown"
+        // The cursor context only ever feeds the polish prompt, so builds
+        // without it never read the focused app's text at all.
+        #if DICTATOR_LLM
         return DictationContext(appName: appName, precedingText: precedingText())
+        #else
+        return DictationContext(appName: appName, precedingText: "")
+        #endif
     }
 
+    #if DICTATOR_LLM
     private static func precedingText(limit: Int = 400) -> String {
         let system = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
@@ -43,4 +57,5 @@ enum ContextCapture {
         let start = max(0, cursor - limit)
         return nsText.substring(with: NSRange(location: start, length: cursor - start))
     }
+    #endif
 }

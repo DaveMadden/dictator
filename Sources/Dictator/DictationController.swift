@@ -1,7 +1,9 @@
 import AppKit
 import AVFoundation
-import DictatorLLM
 import FluidAudio
+#if DICTATOR_LLM
+import DictatorLLM
+#endif
 
 /// Orchestrates one dictation cycle: hotkey down starts capture and a
 /// streaming transcription session that feeds the pill's live preview;
@@ -23,11 +25,8 @@ final class DictationController {
     private let audio = AudioEngine()
     private let transcriber = ParakeetTranscriber()
     private let formatter = DeterministicFormatter()
-    private let llm = LLMFormatter()
     private let injector = Injector()
     private let pill = OverlayPill()
-    private var llmAvailable = false
-    private var llmLastChecked = Date.distantPast
     private var pressActive = false
     private var streamingActive = false
     private var forwardTask: Task<Void, Never>?
@@ -53,10 +52,12 @@ final class DictationController {
                 onModelStatus?("Model: load failed — retries on next dictation")
                 report("Model load failed: \(error.localizedDescription)")
             }
+            #if DICTATOR_LLM
             if SettingsStore.shared.llmEnabled,
                let modelURL = LlamaEngine.resolveModelURL(customPath: SettingsStore.shared.llmModelPath) {
                 await LlamaPolisher.shared.warmUp(modelURL: modelURL)
             }
+            #endif
         }
     }
 
@@ -147,6 +148,7 @@ final class DictationController {
     }
 
     var polishStatus: String {
+        #if DICTATOR_LLM
         let settings = SettingsStore.shared
         guard settings.llmEnabled else { return "AI polish: off" }
         if let url = LlamaEngine.resolveModelURL(customPath: settings.llmModelPath) {
@@ -155,54 +157,43 @@ final class DictationController {
         if !settings.llmModelPath.trimmingCharacters(in: .whitespaces).isEmpty {
             return "AI polish: ⚠️ no model at configured path — check Settings"
         }
-        if llmAvailable {
-            return "AI polish: Ollama (\(settings.llmModel))"
-        }
-        return "AI polish: no engine — set a model path in Settings"
+        return "AI polish: no model — set a model path in Settings"
+        #else
+        return "AI polish: not built in"
+        #endif
     }
 
-    /// Stage-2 polish for 8+ word dictations. Backend priority: embedded
-    /// llama.cpp (a .gguf sideloaded into App Support/Dictator/llm), then a
-    /// running Ollama server. Always falls back to the deterministic text.
+    /// Stage-2 polish for 8+ word dictations, through the embedded llama.cpp
+    /// engine. Compiled in only with DICTATOR_LLM=1; always falls back to the
+    /// deterministic text on any failure or guard rejection.
     private func polishIfPossible(_ text: String, context: DictationContext) async -> String {
+        #if DICTATOR_LLM
         let settings = SettingsStore.shared
         guard settings.llmEnabled,
-              text.split(separator: " ").count >= 8 else { return text }
-        let tone = settings.tone(forApp: context.appName)
-
-        if let modelURL = LlamaEngine.resolveModelURL(customPath: settings.llmModelPath) {
-            do {
-                let raw = try await LlamaPolisher.shared.polish(
-                    text, context: context, tone: tone, modelURL: modelURL)
-                let cleaned = LLMFormatter.stripWrapping(raw)
-                guard LLMFormatter.plausibleRewrite(original: text, candidate: cleaned) else {
-                    NSLog("Dictator: embedded LLM output failed plausibility guard")
-                    return text
-                }
-                return cleaned
-            } catch {
-                NSLog("Dictator: embedded LLM polish failed (%@), using deterministic text", "\(error)")
+              text.split(separator: " ").count >= 8,
+              let modelURL = LlamaEngine.resolveModelURL(customPath: settings.llmModelPath)
+        else { return text }
+        do {
+            let raw = try await LlamaPolisher.shared.polish(
+                text,
+                appName: context.appName,
+                precedingText: context.precedingText,
+                tone: settings.tone(forApp: context.appName),
+                modelURL: modelURL
+            )
+            let cleaned = PolishPrompt.stripWrapping(raw)
+            guard PolishPrompt.plausibleRewrite(original: text, candidate: cleaned) else {
+                NSLog("Dictator: LLM output failed plausibility guard, keeping deterministic text")
                 return text
             }
-        }
-
-        if Date().timeIntervalSince(llmLastChecked) > 120 {
-            llmAvailable = await LLMFormatter.serverAvailable()
-            llmLastChecked = Date()
-        }
-        guard llmAvailable else { return text }
-        do {
-            return try await llm.polish(
-                text,
-                model: settings.llmModel,
-                context: context,
-                tone: tone
-            )
+            return cleaned
         } catch {
-            llmAvailable = false
-            NSLog("Dictator: LLM polish unavailable (%@), using deterministic text", "\(error)")
+            NSLog("Dictator: LLM polish failed (%@), using deterministic text", "\(error)")
             return text
         }
+        #else
+        return text
+        #endif
     }
 
     private func startStreaming(buffers: AsyncStream<AVAudioPCMBuffer>) {

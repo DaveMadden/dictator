@@ -68,6 +68,14 @@ actor ParakeetTranscriber: Transcriber {
 
     // MARK: Model loading
 
+    private static func missingModelsError(_ directory: URL) -> NSError {
+        NSError(
+            domain: "Dictator", code: 10,
+            userInfo: [NSLocalizedDescriptionKey:
+                "Speech models not found at \(directory.path). Install them with `make install-models-from-repo`, or point Settings → Models at your copy."]
+        )
+    }
+
     private func loadedPair() async throws -> (AsrModels, AsrManager) {
         if let loaded { return loaded }
         if loadTask == nil {
@@ -82,15 +90,18 @@ actor ParakeetTranscriber: Transcriber {
                 } else if AsrModels.modelsExist(at: cacheDir) {
                     NSLog("Dictator: loading speech models from local cache")
                     models = try await AsrModels.load(from: cacheDir, version: .v3)
-                } else if settings.allowModelDownload {
+                } else {
+                    // No local copy. Default builds have no downloader at all;
+                    // DICTATOR_DOWNLOAD builds may fetch if the user opted in.
+                    #if DICTATOR_DOWNLOAD
+                    guard settings.allowModelDownload else {
+                        throw Self.missingModelsError(configuredDir)
+                    }
                     NSLog("Dictator: downloading speech models (enabled in Settings)")
                     models = try await AsrModels.downloadAndLoad(version: .v3)
-                } else {
-                    throw NSError(
-                        domain: "Dictator", code: 10,
-                        userInfo: [NSLocalizedDescriptionKey:
-                            "Speech models not found at \(configuredDir.path). Sideload them (make install-models-from-repo) or point Settings → Models at your copy. Downloads are off."]
-                    )
+                    #else
+                    throw Self.missingModelsError(configuredDir)
+                    #endif
                 }
                 let manager = AsrManager(config: .default)
                 try await manager.initialize(models: models)

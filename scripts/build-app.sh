@@ -21,11 +21,15 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 find "$(dirname "$BIN")" -maxdepth 1 -name '*.bundle' \
     -exec cp -R {} "$APP/Contents/MacOS/" \;
 
-# llama.framework is a dynamic binary target; embed it and point the
-# executable's rpath at the bundle's Frameworks directory.
-mkdir -p "$APP/Contents/Frameworks"
-cp -R "$(dirname "$BIN")/llama.framework" "$APP/Contents/Frameworks/"
-install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/Dictator"
+# llama.framework is embedded only when the executable actually links it.
+# Testing the binary (not the build directory) keeps a stale artifact from an
+# earlier DICTATOR_LLM=1 build out of a clean bundle.
+if otool -L "$APP/Contents/MacOS/Dictator" | grep -q 'llama\.framework' \
+    && [ -d "$(dirname "$BIN")/llama.framework" ]; then
+    mkdir -p "$APP/Contents/Frameworks"
+    cp -R "$(dirname "$BIN")/llama.framework" "$APP/Contents/Frameworks/"
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/Dictator"
+fi
 
 # A "Dictator Dev" signing cert (create via Keychain Access → Certificate
 # Assistant, type: Code Signing) keeps the signature stable across rebuilds so
