@@ -1,6 +1,6 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="0" width="1024" height="1024" fill="#e5731f"/>
-  <g transform="scale(6.4)">
+  <g transform="translate(-144,-183) scale(8.2)">
     <polygon points="42,58 50,30 66,52" fill="#9aa0a7"/>
     <polygon points="118,58 110,30 94,52" fill="#9aa0a7"/>
     <polygon points="46,54 52,38 62,52" fill="#c9848a"/>
