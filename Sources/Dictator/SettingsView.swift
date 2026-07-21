@@ -11,6 +11,40 @@ struct SettingsView: View {
                 Toggle("Spoken commands (\u{201C}new line\u{201D}, \u{201C}new paragraph\u{201D})", isOn: $store.spokenCommands)
             }
             Section {
+                Toggle("Polish with local AI (requires Ollama)", isOn: $store.llmEnabled)
+                TextField("Ollama model", text: $store.llmModel)
+                Picker("Default tone", selection: $store.defaultTone) {
+                    ForEach(SettingsStore.tones, id: \.self) { Text($0.capitalized) }
+                }
+                ForEach($store.appTones) { $appTone in
+                    HStack(spacing: 8) {
+                        TextField("App name contains…", text: $appTone.appContains)
+                        Picker("", selection: $appTone.tone) {
+                            ForEach(SettingsStore.tones, id: \.self) { Text($0.capitalized) }
+                        }
+                        .frame(width: 110)
+                        Button {
+                            store.appTones.removeAll { $0.id == appTone.id }
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                Button {
+                    store.appTones.append(.init(appContains: "", tone: store.defaultTone))
+                } label: {
+                    Label("Add per-app tone", systemImage: "plus")
+                }
+            } header: {
+                Text("AI polish")
+            } footer: {
+                Text("Runs entirely on this Mac via Ollama on 127.0.0.1 — used only for dictations of 8+ words, and only when the Ollama server is running. Tone example: \u{201C}Slack\u{201D} → Casual.")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+            }
+            Section {
                 ForEach($store.replacements) { $replacement in
                     HStack(spacing: 8) {
                         TextField("Heard as…", text: $replacement.from)

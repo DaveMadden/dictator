@@ -14,6 +14,14 @@ final class SettingsStore {
         var to: String
     }
 
+    struct AppTone: Codable, Identifiable, Hashable {
+        var id = UUID()
+        var appContains: String
+        var tone: String
+    }
+
+    static let tones = ["casual", "neutral", "formal"]
+
     var replacements: [Replacement] {
         didSet { persist() }
     }
@@ -25,6 +33,29 @@ final class SettingsStore {
     }
     var launchAtLogin: Bool {
         didSet { applyLaunchAtLogin() }
+    }
+    var llmEnabled: Bool {
+        didSet { persist() }
+    }
+    var llmModel: String {
+        didSet { persist() }
+    }
+    var defaultTone: String {
+        didSet { persist() }
+    }
+    var appTones: [AppTone] {
+        didSet { persist() }
+    }
+
+    func tone(forApp appName: String) -> String {
+        let lowered = appName.lowercased()
+        for entry in appTones {
+            let needle = entry.appContains.trimmingCharacters(in: .whitespaces).lowercased()
+            if !needle.isEmpty, lowered.contains(needle) {
+                return entry.tone
+            }
+        }
+        return defaultTone
     }
 
     private init() {
@@ -38,6 +69,15 @@ final class SettingsStore {
         removeFillers = defaults.object(forKey: "removeFillers") as? Bool ?? true
         spokenCommands = defaults.object(forKey: "spokenCommands") as? Bool ?? true
         launchAtLogin = SMAppService.mainApp.status == .enabled
+        llmEnabled = defaults.object(forKey: "llmEnabled") as? Bool ?? true
+        llmModel = defaults.string(forKey: "llmModel") ?? "qwen3:4b"
+        defaultTone = defaults.string(forKey: "defaultTone") ?? "neutral"
+        if let data = defaults.data(forKey: "appTones"),
+           let decoded = try? JSONDecoder().decode([AppTone].self, from: data) {
+            appTones = decoded
+        } else {
+            appTones = []
+        }
     }
 
     private func persist() {
@@ -47,6 +87,12 @@ final class SettingsStore {
         }
         defaults.set(removeFillers, forKey: "removeFillers")
         defaults.set(spokenCommands, forKey: "spokenCommands")
+        defaults.set(llmEnabled, forKey: "llmEnabled")
+        defaults.set(llmModel, forKey: "llmModel")
+        defaults.set(defaultTone, forKey: "defaultTone")
+        if let data = try? JSONEncoder().encode(appTones) {
+            defaults.set(data, forKey: "appTones")
+        }
     }
 
     private func applyLaunchAtLogin() {

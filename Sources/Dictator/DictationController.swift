@@ -22,8 +22,11 @@ final class DictationController {
     private let audio = AudioEngine()
     private let transcriber = ParakeetTranscriber()
     private let formatter = DeterministicFormatter()
+    private let llm = LLMFormatter()
     private let injector = Injector()
     private let pill = OverlayPill()
+    private var llmAvailable = false
+    private var llmLastChecked = Date.distantPast
     private var pressActive = false
     private var streamingActive = false
     private var forwardTask: Task<Void, Never>?
@@ -100,10 +103,11 @@ final class DictationController {
                     return
                 }
             }
-            let final = formatter.format(text)
+            var final = formatter.format(text)
             if !final.isEmpty {
-                let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? "unknown"
-                HistoryStore.shared.add(raw: text, text: final, app: appName)
+                let context = ContextCapture.capture()
+                final = await polishIfPossible(final, context: context)
+                HistoryStore.shared.add(raw: text, text: final, app: context.appName)
                 if !injector.paste(final) {
                     report("A password field is focused — not pasting (text is in History)")
                     state = .idle
@@ -112,6 +116,32 @@ final class DictationController {
             }
             pill.hide()
             state = .idle
+        }
+    }
+
+    /// Stage-2 polish: only for 8+ word dictations, only when Ollama is up
+    /// (availability re-probed at most every 2 minutes), and always falling
+    /// back to the deterministic text on any failure.
+    private func polishIfPossible(_ text: String, context: DictationContext) async -> String {
+        let settings = SettingsStore.shared
+        guard settings.llmEnabled,
+              text.split(separator: " ").count >= 8 else { return text }
+        if Date().timeIntervalSince(llmLastChecked) > 120 {
+            llmAvailable = await LLMFormatter.serverAvailable()
+            llmLastChecked = Date()
+        }
+        guard llmAvailable else { return text }
+        do {
+            return try await llm.polish(
+                text,
+                model: settings.llmModel,
+                context: context,
+                tone: settings.tone(forApp: context.appName)
+            )
+        } catch {
+            llmAvailable = false
+            NSLog("Dictator: LLM polish unavailable (%@), using deterministic text", "\(error)")
+            return text
         }
     }
 
