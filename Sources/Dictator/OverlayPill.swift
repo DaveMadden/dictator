@@ -154,7 +154,6 @@ struct PillView: View {
                     .lineLimit(1)
                     .truncationMode(.head)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: 320, alignment: .leading)
             }
         case .error:
             HStack(spacing: 10) {
@@ -162,7 +161,6 @@ struct PillView: View {
                     .foregroundStyle(.orange)
                 Text(model.message)
                     .lineLimit(2)
-                    .frame(maxWidth: 360, alignment: .leading)
             }
         }
     }

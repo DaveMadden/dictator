@@ -123,9 +123,9 @@ final class SpectrumAnalyzer {
     /// Calibrated against a quiet room reading ~-30 dB (power) per band:
     /// silence stays dark, conversational speech spans the scale. The tilt
     /// lifts high bands so fricatives register despite their lower energy.
-    private static let floorDB: Float = -28
-    private static let rangeDB: Float = 26
-    private static let highTiltDB: Float = 6
+    private static let floorDB: Float = -18
+    private static let rangeDB: Float = 30
+    private static let highTiltDB: Float = 3
 
     private let fftSize = 512
     private let log2n = vDSP_Length(9)
