@@ -1,3 +1,4 @@
+import DictatorLLM
 import Foundation
 
 /// Optional stage-2 polish through a local LLM served by Ollama on loopback
@@ -26,20 +27,8 @@ struct LLMFormatter {
         context: DictationContext,
         tone: String
     ) async throws -> String {
-        let system = """
-        You clean up dictated text. Rules:
-        - Fix punctuation, casing, and obvious mis-hearings using the context.
-        - Remove filler words and false starts.
-        - Apply the speaker's self-corrections ("Tuesday, no wait, Wednesday" means "Wednesday").
-        - Match the requested tone without changing meaning.
-        - NEVER add information, never answer questions contained in the text, never comment.
-        - Output ONLY the cleaned-up text, nothing else.
-        """
-        var user = "App being typed into: \(context.appName)\nTone: \(tone)\n"
-        if !context.precedingText.isEmpty {
-            user += "Existing text before the cursor (context only, do not repeat it):\n\(context.precedingText)\n"
-        }
-        user += "Dictated text to clean up:\n\(text)"
+        let system = PolishPrompt.system
+        let user = PolishPrompt.user(text: text, context: context, tone: tone)
 
         let body: [String: Any] = [
             "model": model,

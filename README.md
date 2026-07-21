@@ -18,8 +18,8 @@ See [PLAN.md](PLAN.md) for the full architecture and roadmap.
 | M1 — real local transcription (Parakeet TDT v3 via CoreML) | ✅ |
 | M2 — streaming transcription, overlay pill, silence trim, toggle mode | ✅ |
 | M3 — personal dictionary, spoken commands, history, settings window | ✅ |
-| M4 — local LLM formatting, per-app tone, context awareness; whisper.cpp fallback | |
-| M5 — signing, releases | |
+| M4 — local LLM polish (embedded llama.cpp or Ollama), per-app tone, context | ✅ |
+| M5 — whisper.cpp fallback, app icon, signing, releases | |
 
 ## Build & run
 
@@ -72,6 +72,26 @@ disk). Two ways to get them onto a machine:
   Alternative without any network: `make export-models` on a machine that
   has the models, move the tarball by AirDrop/USB, then
   `make install-models FILE=dictator-models-v3.tar.gz`.
+
+## AI polish (optional)
+
+Dictations of 8+ words can be cleaned up by a local LLM: punctuation, filler
+and false-start removal, self-correction resolution ("Tuesday, no wait,
+Wednesday" → "Wednesday"), and per-app tone matching. Two engines, tried in
+order:
+
+1. **Embedded llama.cpp** (recommended, no installs): drop any GGUF chat
+   model into `~/Library/Application Support/Dictator/llm/` — e.g.
+   Qwen3-4B-Instruct Q4 (~2.5GB) — and it is loaded automatically. Inference
+   runs in-process via Metal; the model file can come from anywhere your
+   policies allow (Hugging Face, an internal Artifactory, USB).
+2. **Ollama fallback**: if no GGUF is sideloaded but an Ollama server is
+   running on `127.0.0.1:11434`, that is used instead.
+
+Either way the text never leaves the machine; without either engine, the
+deterministic formatting still applies and dictation works normally. The
+output is guarded: rewrites that deviate implausibly from what was said are
+discarded in favor of the deterministic text.
 
 ## Privacy
 

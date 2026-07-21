@@ -19,6 +19,12 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 find "$(dirname "$BIN")" -maxdepth 1 -name '*.bundle' \
     -exec cp -R {} "$APP/Contents/MacOS/" \;
 
+# llama.framework is a dynamic binary target; embed it and point the
+# executable's rpath at the bundle's Frameworks directory.
+mkdir -p "$APP/Contents/Frameworks"
+cp -R "$(dirname "$BIN")/llama.framework" "$APP/Contents/Frameworks/"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/Dictator"
+
 # A "Dictator Dev" signing cert (create via Keychain Access → Certificate
 # Assistant, type: Code Signing) keeps the signature stable across rebuilds so
 # macOS permission grants survive. Falls back to ad-hoc.

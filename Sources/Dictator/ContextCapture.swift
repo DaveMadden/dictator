@@ -1,12 +1,6 @@
 import AppKit
 import ApplicationServices
-
-struct DictationContext {
-    let appName: String
-    /// Up to ~400 chars before the cursor in the focused text field. Used
-    /// in-memory to condition the polish prompt, never stored anywhere.
-    let precedingText: String
-}
+import DictatorLLM
 
 enum ContextCapture {
     static func capture() -> DictationContext {

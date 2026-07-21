@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import DictatorLLM
 import FluidAudio
 
 /// Orchestrates one dictation cycle: hotkey down starts capture and a
@@ -46,6 +47,9 @@ final class DictationController {
             } catch {
                 onModelStatus?("Model: load failed — retries on next dictation")
                 report("Model load failed: \(error.localizedDescription)")
+            }
+            if SettingsStore.shared.llmEnabled, LlamaEngine.sideloadedModelURL() != nil {
+                await LlamaPolisher.shared.warmUp()
             }
         }
     }
@@ -123,13 +127,41 @@ final class DictationController {
         }
     }
 
-    /// Stage-2 polish: only for 8+ word dictations, only when Ollama is up
-    /// (availability re-probed at most every 2 minutes), and always falling
-    /// back to the deterministic text on any failure.
+    var polishStatus: String {
+        guard SettingsStore.shared.llmEnabled else { return "AI polish: off" }
+        if let url = LlamaEngine.sideloadedModelURL() {
+            return "AI polish: embedded (\(url.lastPathComponent))"
+        }
+        if llmAvailable {
+            return "AI polish: Ollama (\(SettingsStore.shared.llmModel))"
+        }
+        return "AI polish: no engine — drop a .gguf in App Support/Dictator/llm"
+    }
+
+    /// Stage-2 polish for 8+ word dictations. Backend priority: embedded
+    /// llama.cpp (a .gguf sideloaded into App Support/Dictator/llm), then a
+    /// running Ollama server. Always falls back to the deterministic text.
     private func polishIfPossible(_ text: String, context: DictationContext) async -> String {
         let settings = SettingsStore.shared
         guard settings.llmEnabled,
               text.split(separator: " ").count >= 8 else { return text }
+        let tone = settings.tone(forApp: context.appName)
+
+        if LlamaEngine.sideloadedModelURL() != nil {
+            do {
+                let raw = try await LlamaPolisher.shared.polish(text, context: context, tone: tone)
+                let cleaned = LLMFormatter.stripWrapping(raw)
+                guard LLMFormatter.plausibleRewrite(original: text, candidate: cleaned) else {
+                    NSLog("Dictator: embedded LLM output failed plausibility guard")
+                    return text
+                }
+                return cleaned
+            } catch {
+                NSLog("Dictator: embedded LLM polish failed (%@), using deterministic text", "\(error)")
+                return text
+            }
+        }
+
         if Date().timeIntervalSince(llmLastChecked) > 120 {
             llmAvailable = await LLMFormatter.serverAvailable()
             llmLastChecked = Date()
@@ -140,7 +172,7 @@ final class DictationController {
                 text,
                 model: settings.llmModel,
                 context: context,
-                tone: settings.tone(forApp: context.appName)
+                tone: tone
             )
         } catch {
             llmAvailable = false

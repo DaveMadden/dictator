@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var sessionLocked = false
     private var permissionPollTimer: Timer?
     private var modelMenuItem: NSMenuItem!
+    private var polishMenuItem: NSMenuItem!
     private var modelStatus = "Model: loading…"
     private var settingsWindow: NSWindow?
     private var historyWindow: NSWindow?
@@ -161,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(axMenuItem)
         modelMenuItem = disabledItem(modelStatus)
         menu.addItem(modelMenuItem)
+        polishMenuItem = disabledItem(controller.polishStatus)
+        menu.addItem(polishMenuItem)
         menu.addItem(.separator())
         let hotkeyItem = NSMenuItem(title: "Hotkey", action: nil, keyEquivalent: "")
         let hotkeyMenu = NSMenu()
@@ -214,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ? "Accessibility: granted ✓"
             : "Accessibility: not granted ✗"
         modelMenuItem?.title = modelStatus
+        polishMenuItem?.title = controller.polishStatus
     }
 
     private func render(state: DictationController.State) {
