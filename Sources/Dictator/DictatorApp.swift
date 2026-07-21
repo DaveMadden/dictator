@@ -120,8 +120,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         presentWindow(
             &historyWindow,
             title: "Dictation History",
-            view: HistoryView(store: .shared)
+            view: HistoryView(store: .shared) { [weak self] text in
+                self?.pasteDismissingHistory(text)
+            }
         )
+    }
+
+    /// Enter/double-click in the History window: dismiss, give focus back to
+    /// the app the user came from, then inject.
+    private func pasteDismissingHistory(_ text: String) {
+        historyWindow?.orderOut(nil)
+        NSApp.hide(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.controller.pasteFromHistory(text)
+        }
     }
 
     private func presentWindow(_ window: inout NSWindow?, title: String, view: some View) {

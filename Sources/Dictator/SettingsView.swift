@@ -175,7 +175,12 @@ struct SettingsView: View {
 
 struct HistoryView: View {
     let store: HistoryStore
+    /// Called with the chosen entry's text; the host dismisses the window,
+    /// returns focus to the previous app, and pastes.
+    var onPaste: (String) -> Void
     @State private var query = ""
+    @State private var selectedID: UUID?
+    @FocusState private var searchFocused: Bool
 
     private static let timeFormat: DateFormatter = {
         let formatter = DateFormatter()
@@ -194,6 +199,15 @@ struct HistoryView: View {
         }
     }
 
+    /// Spotlight semantics: the top result is implicitly selected until the
+    /// arrows move the highlight.
+    private var selectedEntry: HistoryStore.Entry? {
+        if let selectedID, let match = filtered.first(where: { $0.id == selectedID }) {
+            return match
+        }
+        return filtered.first
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
@@ -201,6 +215,10 @@ struct HistoryView: View {
                     .foregroundStyle(.secondary)
                 TextField("Search dictations", text: $query)
                     .textFieldStyle(.plain)
+                    .focused($searchFocused)
+                    .onSubmit { pasteSelection() }
+                    .onKeyPress(.downArrow) { move(1); return .handled }
+                    .onKeyPress(.upArrow) { move(-1); return .handled }
             }
             .padding(8)
             Divider()
@@ -213,33 +231,27 @@ struct HistoryView: View {
             } else if filtered.isEmpty {
                 ContentUnavailableView.search(text: query)
             } else {
-                List(filtered) { entry in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(Self.timeFormat.string(from: entry.date))
-                            Text("·")
-                            Text(entry.app)
-                            Spacer()
-                            Button {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(entry.text, forType: .string)
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .buttonStyle(.plain)
-                            .help("Copy")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        Text(entry.text)
-                            .textSelection(.enabled)
+                ScrollViewReader { proxy in
+                    List(filtered) { entry in
+                        row(entry)
+                            .id(entry.id)
+                            .listRowBackground(
+                                entry.id == selectedEntry?.id
+                                    ? Color.accentColor.opacity(0.16)
+                                    : nil
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) { onPaste(entry.text) }
+                            .onTapGesture { selectedID = entry.id }
                     }
-                    .padding(.vertical, 4)
+                    .onChange(of: selectedID) { _, newValue in
+                        if let newValue { proxy.scrollTo(newValue) }
+                    }
                 }
             }
             Divider()
             HStack {
-                Text("\(store.entries.count) dictations, stored locally")
+                Text("\(store.entries.count) dictations · ↑↓ select · ⏎ paste · double-click paste")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -251,5 +263,44 @@ struct HistoryView: View {
             .padding(10)
         }
         .frame(minWidth: 460, minHeight: 380)
+        .onAppear { searchFocused = true }
+        .onChange(of: query) { _, _ in selectedID = nil }
+    }
+
+    @ViewBuilder
+    private func row(_ entry: HistoryStore.Entry) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(Self.timeFormat.string(from: entry.date))
+                Text("·")
+                Text(entry.app)
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(entry.text, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.plain)
+                .help("Copy")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            Text(entry.text)
+                .textSelection(.enabled)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func move(_ delta: Int) {
+        let ids = filtered.map(\.id)
+        guard !ids.isEmpty else { return }
+        let current = selectedEntry.flatMap { entry in ids.firstIndex(of: entry.id) } ?? 0
+        selectedID = ids[min(max(0, current + delta), ids.count - 1)]
+    }
+
+    private func pasteSelection() {
+        guard let entry = selectedEntry else { return }
+        onPaste(entry.text)
     }
 }
