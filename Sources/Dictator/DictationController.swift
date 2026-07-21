@@ -37,6 +37,12 @@ final class DictationController {
         pill.update(locked: true)
     }
 
+    func pasteFromHistory(_ text: String) {
+        if !injector.paste(text) {
+            report("A password field is focused — not pasting")
+        }
+    }
+
     func warmUpModel() {
         onModelStatus?("Model: loading…")
         Task { @MainActor in

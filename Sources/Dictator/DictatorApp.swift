@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var modelStatus = "Model: loading…"
     private var settingsWindow: NSWindow?
     private var historyWindow: NSWindow?
+    private var recentMenu: NSMenu!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -186,6 +187,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         modeItem.submenu = modeMenu
         menu.addItem(modeItem)
         menu.addItem(.separator())
+        let recentItem = NSMenuItem(title: "Recent Dictations", action: nil, keyEquivalent: "")
+        recentMenu = NSMenu()
+        recentItem.submenu = recentMenu
+        menu.addItem(recentItem)
         menu.addItem(actionItem("Settings…", #selector(openSettings), key: ","))
         menu.addItem(actionItem("History…", #selector(openHistory)))
         menu.addItem(.separator())
@@ -218,6 +223,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             : "Accessibility: not granted ✗"
         modelMenuItem?.title = modelStatus
         polishMenuItem?.title = controller.polishStatus
+        refreshRecentMenu()
+    }
+
+    /// Clipboard-manager-style quick access: clicking an entry pastes it into
+    /// the frontmost app (status menus never steal that app's focus).
+    private func refreshRecentMenu() {
+        guard let recentMenu else { return }
+        recentMenu.removeAllItems()
+        let recents = HistoryStore.shared.entries.suffix(5).reversed()
+        guard !recents.isEmpty else {
+            recentMenu.addItem(disabledItem("No dictations yet"))
+            return
+        }
+        for entry in recents {
+            let flattened = entry.text.replacingOccurrences(of: "\n", with: " ")
+            let title = flattened.count > 44
+                ? String(flattened.prefix(44)) + "…"
+                : flattened
+            let item = actionItem(title, #selector(pasteRecent(_:)))
+            item.representedObject = entry.text
+            recentMenu.addItem(item)
+        }
+    }
+
+    @objc private func pasteRecent(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        // Give the menu a beat to dismiss so focus is back on the target app.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.controller.pasteFromHistory(text)
+        }
     }
 
     private func render(state: DictationController.State) {

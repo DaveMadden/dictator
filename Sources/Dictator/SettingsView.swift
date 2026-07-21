@@ -175,6 +175,7 @@ struct SettingsView: View {
 
 struct HistoryView: View {
     let store: HistoryStore
+    @State private var query = ""
 
     private static let timeFormat: DateFormatter = {
         let formatter = DateFormatter()
@@ -183,16 +184,36 @@ struct HistoryView: View {
         return formatter
     }()
 
+    private var filtered: [HistoryStore.Entry] {
+        let all = Array(store.entries.reversed())
+        let needle = query.trimmingCharacters(in: .whitespaces)
+        guard !needle.isEmpty else { return all }
+        return all.filter {
+            $0.text.localizedCaseInsensitiveContains(needle)
+                || $0.app.localizedCaseInsensitiveContains(needle)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search dictations", text: $query)
+                    .textFieldStyle(.plain)
+            }
+            .padding(8)
+            Divider()
             if store.entries.isEmpty {
                 ContentUnavailableView(
                     "No dictations yet",
                     systemImage: "mic.slash",
                     description: Text("Everything you dictate is stored only on this Mac.")
                 )
+            } else if filtered.isEmpty {
+                ContentUnavailableView.search(text: query)
             } else {
-                List(store.entries.reversed()) { entry in
+                List(filtered) { entry in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(Self.timeFormat.string(from: entry.date))
