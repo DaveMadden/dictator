@@ -64,7 +64,9 @@ struct DeterministicFormatter {
         // after the command's pause even when it drops the period) — so noun
         // uses like "new line items" never convert.
         let leadIn = "(?:(?:and|then|now|okay|so)[\\s,]+){0,3}"
-        let commandEnd = "(?:\\s*[.,!?]+\\s*|\\s+(?=[A-Z])|\\s*$)"
+        // (?-i:…) forces case sensitivity for the capital-letter check even
+        // though the overall match is case-insensitive.
+        let commandEnd = "(?:\\s*[.,!?]+\\s*|\\s+(?-i:(?=[A-Z]))|\\s*$)"
         let commands: [(pattern: String, insert: String)] = [
             (boundary + "\\s*" + leadIn + "(?:new[\\s,]+)+paragraph\\b" + commandEnd, "\n\n"),
             (boundary + "\\s*" + leadIn + "(?:new[\\s,]+)+line\\b" + commandEnd, "\n"),
