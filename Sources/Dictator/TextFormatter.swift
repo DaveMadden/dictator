@@ -49,6 +49,14 @@ struct DeterministicFormatter {
     /// ("new new paragraph") collapse into one command.
     private func applySpokenCommands(_ text: String) -> String {
         var result = text
+        // Spoken "quote … unquote/end quote" becomes real quotation marks,
+        // with the trailing punctuation tucked inside. Only fires when both
+        // halves appear on one line, so a lone "quote" stays a word.
+        result = result.replacingOccurrences(
+            of: "\\bquote[,:.]?\\s+([^\\n]+?)[,]?\\s+(?:unquote|end ?quote)\\b([.!?]?)",
+            with: "\u{0022}$1$2\u{0022}",
+            options: [.regularExpression, .caseInsensitive]
+        )
         let boundary = "(?:^|(?<=[,.!?;:\u{2013}\u{2014}\"'\u{201D}\u{2019}-]))"
         let commands: [(pattern: String, insert: String)] = [
             (boundary + "\\s*(?:new[\\s,]+)+paragraph\\b[,.!?]?\\s*", "\n\n"),

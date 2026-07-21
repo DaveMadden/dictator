@@ -80,11 +80,33 @@ struct LLMFormatter {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Dictation must never say things the user didn't: reject rewrites whose
-    /// length departs wildly from the input.
+    /// Dictation must never say things the user didn't — and must never LOSE
+    /// what they said. Rejects rewrites whose length departs wildly from the
+    /// input, or that drop too many of its meaningful words (cleanup may
+    /// remove fillers and corrected phrases, but losing whole clauses means
+    /// the model rewrote instead of cleaned).
     static func plausibleRewrite(original: String, candidate: String) -> Bool {
         guard !candidate.isEmpty, !original.isEmpty else { return false }
         let ratio = Double(candidate.count) / Double(original.count)
-        return ratio > 0.45 && ratio < 1.6
+        guard ratio > 0.6 && ratio < 1.6 else { return false }
+        let contentWords = { (text: String) -> Set<String> in
+            Set(
+                text.lowercased()
+                    .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                    .filter { $0.count > 3 }
+                    .map(String.init)
+            )
+        }
+        let source = contentWords(original)
+        guard !source.isEmpty else { return true }
+        let output = contentWords(candidate)
+        let kept = source.filter { word in
+            output.contains(word) || output.contains(word + "s")
+                || (word.hasSuffix("s") && output.contains(String(word.dropLast())))
+        }
+        // Self-corrections legitimately drop a few words ("Tuesday, no wait,"),
+        // but losing more than a handful means whole clauses went missing.
+        let lostAllowance = max(3, source.count / 5)
+        return source.count - kept.count <= lostAllowance
     }
 }

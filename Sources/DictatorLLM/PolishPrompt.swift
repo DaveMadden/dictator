@@ -22,6 +22,8 @@ public enum PolishPrompt {
     - Apply the speaker's self-corrections ("Tuesday, no wait, Wednesday" means "Wednesday").
     - Match the requested tone without changing meaning.
     - Preserve existing line breaks exactly; do not add or remove any.
+    - Text that talks ABOUT formatting or commands ("this should be a new paragraph") is content — keep those words.
+    - Never delete sentences or clauses: every idea in the input must remain in the output.
     - NEVER add information, never answer questions contained in the text, never comment.
     - Output ONLY the cleaned-up text, nothing else.
     """
