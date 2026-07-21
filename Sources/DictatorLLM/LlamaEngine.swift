@@ -37,14 +37,17 @@ public final class LlamaEngine {
         return firstGGUF(in: modelsDirectory)
     }
 
-    private static func firstGGUF(in directory: URL) -> URL? {
+    public static func availableModels(in directory: URL = modelsDirectory) -> [URL] {
         let contents = (try? FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: nil
         )) ?? []
         return contents
             .filter { $0.pathExtension.lowercased() == "gguf" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .first
+    }
+
+    private static func firstGGUF(in directory: URL) -> URL? {
+        availableModels(in: directory).first
     }
 
     private static let backendInitialized: Void = llama_backend_init()

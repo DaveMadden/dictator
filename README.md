@@ -51,14 +51,15 @@ Proper local signing lands in M5.
 ## Speech models (and the zero-network install)
 
 Transcription uses NVIDIA's Parakeet TDT 0.6B v3 as CoreML models (~470MB on
-disk). Two ways to get them onto a machine:
+disk). **The app never downloads models by default** — it loads them only
+from the paths shown in Settings → Models (both the speech folder and the
+polish model are configurable there, so vetted copies can live anywhere: an
+internal Artifactory checkout, a shared drive, a USB stick). If a model is
+missing, the app reports it and stops; it does not fetch. Ways to get the
+speech models onto a machine:
 
-- **Online (default)**: on first launch the app downloads them once from
-  Hugging Face into `~/Library/Application Support/FluidAudio/Models/` and
-  never fetches again.
-- **Offline / locked-down machine**: sideload them so the app performs **no
-  network access at all** — the only host ever contacted is GitHub itself.
-  From a fresh clone, **before first launch**:
+- **From this repo** — the only host contacted is GitHub itself. From a
+  fresh clone, **before first launch**:
 
   ```sh
   make install-models-from-repo
@@ -69,9 +70,14 @@ disk). Two ways to get them onto a machine:
   and installs it. Sideloaded models take priority over the downloader,
   which then never runs.
 
-  Alternative without any network: `make export-models` on a machine that
-  has the models, move the tarball by AirDrop/USB, then
-  `make install-models FILE=dictator-models-v3.tar.gz`.
+- **Without any network**: `make export-models` on a machine that has the
+  models, move the tarball by AirDrop/USB, then
+  `make install-models FILE=dictator-models-v3.tar.gz` — or point
+  Settings → Models at wherever your organization keeps vetted copies.
+- **Opt-in download**: Settings → Models has an off-by-default toggle to
+  allow a one-time fetch from Hugging Face, for personal machines where
+  that's acceptable. (The developer CLI's transcribe smoke test may also
+  download; the app itself never does unless this toggle is on.)
 
 ## AI polish (optional)
 
@@ -81,10 +87,11 @@ Wednesday" → "Wednesday"), and per-app tone matching. Two engines, tried in
 order:
 
 1. **Embedded llama.cpp** (recommended, no installs): point Settings →
-   AI polish at any GGUF chat model you already have — a specific file (any
+   Models at any GGUF chat model you already have — a specific file (any
    filename, even Ollama's extension-less blobs) or a folder of models
-   (LM Studio's models folder works as-is). No copying multi-GB files
-   around. Left blank, it falls back to scanning
+   (LM Studio's models folder works as-is). The Models section lists every
+   model it can see with sizes and the active one marked; click to switch.
+   No copying multi-GB files around. Left blank, it falls back to scanning
    `~/Library/Application Support/Dictator/llm/`, so drop-a-file-in-a-folder
    still works. Inference runs in-process via Metal; e.g.
    Qwen3-4B-Instruct Q4 (~2.5GB) from wherever your policies allow

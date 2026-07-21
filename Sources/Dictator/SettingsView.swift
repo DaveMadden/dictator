@@ -1,3 +1,5 @@
+import AppKit
+import DictatorLLM
 import SwiftUI
 
 struct SettingsView: View {
@@ -5,6 +7,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            modelsSection
             Section("General") {
                 Toggle("Launch at login", isOn: $store.launchAtLogin)
                 Toggle("Remove filler words (um, uh…)", isOn: $store.removeFillers)
@@ -88,6 +91,85 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 480, minHeight: 400)
+    }
+
+    @ViewBuilder
+    private var modelsSection: some View {
+        let speech = ModelInventory.speechStatus()
+        let llmItems = ModelInventory.llmItems()
+        Section {
+            HStack(spacing: 8) {
+                Image(systemName: speech.found ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(speech.found ? .green : .orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Speech recognition")
+                    Text(speech.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            HStack(spacing: 8) {
+                TextField("Speech models folder (blank = standard location)", text: $store.speechModelDir)
+                Button("Choose…") {
+                    choosePath(directoriesOnly: true) { store.speechModelDir = $0 }
+                }
+            }
+            HStack(spacing: 8) {
+                Image(systemName: llmItems.contains(where: \.active) ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(llmItems.contains(where: \.active) ? .green : .orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("AI polish")
+                    if llmItems.isEmpty {
+                        Text("No GGUF models found — drop one in \(ModelInventory.abbreviate(LlamaEngine.modelsDirectory)) or point below")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Click a model to make it active")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            ForEach(llmItems) { item in
+                Button {
+                    store.llmModelPath = item.url.path
+                } label: {
+                    HStack {
+                        Image(systemName: item.active ? "largecircle.fill.circle" : "circle")
+                            .foregroundStyle(item.active ? .green : .secondary)
+                        Text(item.name)
+                        Spacer()
+                        Text(item.sizeText)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            HStack(spacing: 8) {
+                TextField("Polish model: GGUF file or folder (blank = standard location)", text: $store.llmModelPath)
+                Button("Choose…") {
+                    choosePath(directoriesOnly: false) { store.llmModelPath = $0 }
+                }
+            }
+            Toggle("Allow downloading missing speech models (Hugging Face)", isOn: $store.allowModelDownload)
+        } header: {
+            Text("Models")
+        } footer: {
+            Text("With downloads off (the default), Dictator only loads models from these paths and never touches the network — a missing model is an error, not a download.")
+                .foregroundStyle(.secondary)
+                .font(.callout)
+        }
+    }
+
+    private func choosePath(directoriesOnly: Bool, assign: @escaping (String) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = !directoriesOnly
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            assign(url.path)
+        }
     }
 }
 

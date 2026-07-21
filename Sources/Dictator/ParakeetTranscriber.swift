@@ -73,13 +73,25 @@ actor ParakeetTranscriber: Transcriber {
         if let loaded { return loaded }
         if loadTask == nil {
             loadTask = Task {
+                let settings = SettingsStore.shared
+                let configuredDir = settings.resolvedSpeechDir
+                let cacheDir = AsrModels.defaultCacheDirectory()
                 let models: AsrModels
-                if AsrModels.modelsExist(at: Self.localModelsDirectory) {
-                    NSLog("Dictator: loading sideloaded models (offline)")
-                    models = try await AsrModels.load(from: Self.localModelsDirectory, version: .v3)
-                } else {
-                    NSLog("Dictator: no sideloaded models — downloading to cache (one-time)")
+                if AsrModels.modelsExist(at: configuredDir) {
+                    NSLog("Dictator: loading speech models from %@", configuredDir.path)
+                    models = try await AsrModels.load(from: configuredDir, version: .v3)
+                } else if AsrModels.modelsExist(at: cacheDir) {
+                    NSLog("Dictator: loading speech models from local cache")
+                    models = try await AsrModels.load(from: cacheDir, version: .v3)
+                } else if settings.allowModelDownload {
+                    NSLog("Dictator: downloading speech models (enabled in Settings)")
                     models = try await AsrModels.downloadAndLoad(version: .v3)
+                } else {
+                    throw NSError(
+                        domain: "Dictator", code: 10,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "Speech models not found at \(configuredDir.path). Sideload them (make install-models-from-repo) or point Settings → Models at your copy. Downloads are off."]
+                    )
                 }
                 let manager = AsrManager(config: .default)
                 try await manager.initialize(models: models)

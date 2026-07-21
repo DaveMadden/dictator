@@ -49,6 +49,24 @@ final class SettingsStore {
     var appTones: [AppTone] {
         didSet { persist() }
     }
+    /// Custom folder for the Parakeet CoreML models; empty = default location.
+    var speechModelDir: String {
+        didSet { persist() }
+    }
+    /// Off by default: the app never downloads models unless this is enabled.
+    var allowModelDownload: Bool {
+        didSet { persist() }
+    }
+
+    static let defaultSpeechDir = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Dictator/models/parakeet-tdt-0.6b-v3-coreml", isDirectory: true)
+
+    var resolvedSpeechDir: URL {
+        let trimmed = speechModelDir.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return Self.defaultSpeechDir }
+        return URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath, isDirectory: true)
+    }
 
     func tone(forApp appName: String) -> String {
         let lowered = appName.lowercased()
@@ -84,6 +102,8 @@ final class SettingsStore {
         } else {
             appTones = []
         }
+        speechModelDir = defaults.string(forKey: "speechModelDir") ?? ""
+        allowModelDownload = defaults.object(forKey: "allowModelDownload") as? Bool ?? false
     }
 
     private func persist() {
@@ -100,6 +120,8 @@ final class SettingsStore {
         if let data = try? JSONEncoder().encode(appTones) {
             defaults.set(data, forKey: "appTones")
         }
+        defaults.set(speechModelDir, forKey: "speechModelDir")
+        defaults.set(allowModelDownload, forKey: "allowModelDownload")
     }
 
     private func applyLaunchAtLogin() {
