@@ -6,9 +6,34 @@ cd "$(dirname "$0")/.."
 
 CONFIG="${1:-release}"
 APP="build/Dictator.app"
+SWIFTPM_ROOT="$PWD/.swiftpm"
+SWIFT_SCRATCH="$PWD/.build"
+MODULE_CACHE="$SWIFT_SCRATCH/ModuleCache.noindex"
 
-swift build -c "$CONFIG"
-BIN="$(swift build -c "$CONFIG" --show-bin-path)/Dictator"
+# If full Xcode is installed but Command Line Tools are selected, prefer the
+# coherent Xcode toolchain to avoid compiler/SDK version skew.
+if [ -z "${DEVELOPER_DIR:-}" ] \
+    && [ -d /Applications/Xcode.app/Contents/Developer ] \
+    && [ "$(xcode-select -p 2>/dev/null || true)" = "/Library/Developer/CommandLineTools" ]; then
+    export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+    echo "note: using Xcode toolchain from $DEVELOPER_DIR"
+fi
+
+# Keep SwiftPM and Clang caches inside the repo so builds do not depend on
+# private user cache directories being writable.
+mkdir -p "$SWIFTPM_ROOT/cache" "$SWIFTPM_ROOT/config" "$SWIFTPM_ROOT/security" "$MODULE_CACHE"
+export CLANG_MODULE_CACHE_PATH="$MODULE_CACHE"
+SWIFT_BUILD_ARGS=(
+    -c "$CONFIG"
+    --cache-path "$SWIFTPM_ROOT/cache"
+    --config-path "$SWIFTPM_ROOT/config"
+    --security-path "$SWIFTPM_ROOT/security"
+    --manifest-cache local
+    --scratch-path "$SWIFT_SCRATCH"
+)
+
+swift build "${SWIFT_BUILD_ARGS[@]}"
+BIN="$(swift build "${SWIFT_BUILD_ARGS[@]}" --show-bin-path)/Dictator"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
