@@ -1,10 +1,15 @@
 import AppKit
+import OSLog
 import SwiftUI
 import ServiceManagement
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static var shared: AppDelegate?
+    private let log = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.davidmadden.dictator",
+        category: "app"
+    )
 
     static func main() {
         let app = NSApplication.shared
@@ -20,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var axMenuItem: NSMenuItem!
     private let hotkey = HotkeyController()
     private let controller = DictationController()
-    private var hotkeyActive = false
+    private var hotkeyListenerActive = false
     private var currentHotkey = Hotkey.saved
     private var currentMode = ActivationMode.saved
     private var sessionLocked = false
@@ -31,6 +36,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var settingsWindow: NSWindow?
     private var historyWindow: NSWindow?
     private var recentMenu: NSMenu!
+    private var recoveryLeadingSeparatorItem: NSMenuItem!
+    private var recoveryWarningItem: NSMenuItem!
+    private var accessibilitySettingsItem: NSMenuItem!
+    private var inputMonitoringSettingsItem: NSMenuItem!
+    private var retryHotkeyItem: NSMenuItem!
+    private var recoveryTrailingSeparatorItem: NSMenuItem!
+
+    private func hotkeySetupState(accessibilityGranted: Bool) -> HotkeySetupState {
+        HotkeySetupState(
+            listenerActive: hotkeyListenerActive,
+            accessibilityGranted: accessibilityGranted
+        )
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateOtherInstances()
@@ -83,11 +101,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func startHotkey() {
-        hotkeyActive = hotkey.start()
-        if !hotkeyActive {
+        hotkeyListenerActive = hotkey.start()
+        let accessibilityGranted = Permissions.accessibilityGranted
+        let setup = hotkeySetupState(accessibilityGranted: accessibilityGranted)
+        if setup.shouldPromptForAccessibility {
+            log.notice("Dictator hotkey: Accessibility missing; prompting for permission")
             Permissions.promptForAccessibility()
             startPermissionPolling()
+        } else if !hotkeyListenerActive {
+            log.error("Dictator hotkey: listener inactive even though Accessibility is granted")
+            stopPermissionPolling()
         } else {
+            log.notice("Dictator hotkey: listener active")
             stopPermissionPolling()
         }
         rebuildMenu()
@@ -98,12 +123,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func startPermissionPolling() {
         guard permissionPollTimer == nil else { return }
         permissionPollTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            guard let self, !self.hotkeyActive, Permissions.accessibilityGranted else { return }
-            if self.hotkey.start() {
-                self.hotkeyActive = true
+            guard let self else { return }
+            let startSucceeded = self.hotkey.start()
+            guard let outcome = HotkeyPermissionPollOutcome.evaluate(
+                accessibilityGranted: Permissions.accessibilityGranted,
+                startSucceeded: startSucceeded
+            ) else { return }
+            self.hotkeyListenerActive = outcome.listenerActive
+            if outcome.stopPolling {
                 self.stopPermissionPolling()
-                self.rebuildMenu()
+                self.log.notice("Dictator hotkey: listener activated after permission grant")
+            } else {
+                self.log.error("Dictator hotkey: Accessibility granted but listener still inactive")
             }
+            self.rebuildMenu()
         }
     }
 
@@ -115,6 +148,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func retryHotkey() { startHotkey() }
     @objc private func openAccessibilitySettings() { Permissions.openAccessibilityPane() }
     @objc private func openInputMonitoringSettings() { Permissions.openInputMonitoringPane() }
+    @objc private func copyDiagnostics() {
+        let accessibilityGranted = Permissions.accessibilityGranted
+        let report = diagnosticsReport(accessibilityGranted: accessibilityGranted)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.setString(report.formatted, forType: .string) {
+            log.notice("Dictator diagnostics copied to pasteboard")
+        } else {
+            log.error("Dictator diagnostics failed to copy to pasteboard")
+        }
+    }
     @objc private func quit() { NSApp.terminate(nil) }
 
     @objc private func toggleLoginItem() {
@@ -221,6 +265,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         polishMenuItem = disabledItem(controller.polishStatus)
         menu.addItem(polishMenuItem)
         menu.addItem(.separator())
+        let recentItem = NSMenuItem(title: "Recent Dictations", action: nil, keyEquivalent: "")
+        recentMenu = NSMenu()
+        recentItem.submenu = recentMenu
+        menu.addItem(recentItem)
+        menu.addItem(actionItem("History…", #selector(openHistory)))
+        menu.addItem(actionItem("Copy Diagnostics", #selector(copyDiagnostics)))
+        menu.addItem(.separator())
+        menu.addItem(actionItem("Settings…", #selector(openSettings), key: ","))
+        menu.addItem(.separator())
         let hotkeyItem = NSMenuItem(title: "Hotkey", action: nil, keyEquivalent: "")
         let hotkeyMenu = NSMenu()
         for option in Hotkey.allCases {
@@ -242,24 +295,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         modeItem.submenu = modeMenu
         menu.addItem(modeItem)
         menu.addItem(.separator())
-        let recentItem = NSMenuItem(title: "Recent Dictations", action: nil, keyEquivalent: "")
-        recentMenu = NSMenu()
-        recentItem.submenu = recentMenu
-        menu.addItem(recentItem)
-        menu.addItem(actionItem("Settings…", #selector(openSettings), key: ","))
-        menu.addItem(actionItem("History…", #selector(openHistory)))
-        menu.addItem(.separator())
         let loginItem = actionItem("Start at Login", #selector(toggleLoginItem))
         loginItem.state = loginItemEnabled ? .on : .off
         menu.addItem(loginItem)
-        menu.addItem(.separator())
-        if !hotkeyActive {
-            menu.addItem(disabledItem("⚠️ Hotkey inactive — activates itself once permission is granted"))
-            menu.addItem(actionItem("Open Accessibility Settings", #selector(openAccessibilitySettings)))
-            menu.addItem(actionItem("Open Input Monitoring Settings", #selector(openInputMonitoringSettings)))
-            menu.addItem(actionItem("Retry Hotkey Listener", #selector(retryHotkey), key: "r"))
-            menu.addItem(.separator())
-        }
+        recoveryLeadingSeparatorItem = .separator()
+        menu.addItem(recoveryLeadingSeparatorItem)
+        recoveryWarningItem = disabledItem("")
+        menu.addItem(recoveryWarningItem)
+        accessibilitySettingsItem = actionItem("Open Accessibility Settings", #selector(openAccessibilitySettings))
+        menu.addItem(accessibilitySettingsItem)
+        inputMonitoringSettingsItem = actionItem("Open Input Monitoring Settings", #selector(openInputMonitoringSettings))
+        menu.addItem(inputMonitoringSettingsItem)
+        retryHotkeyItem = actionItem("Retry Hotkey Listener", #selector(retryHotkey), key: "r")
+        menu.addItem(retryHotkeyItem)
+        recoveryTrailingSeparatorItem = .separator()
+        menu.addItem(recoveryTrailingSeparatorItem)
+        refreshRecoveryItems(accessibilityGranted: Permissions.accessibilityGranted)
         menu.addItem(actionItem("Quit Dictator", #selector(quit), key: "q"))
         statusItem.menu = menu
     }
@@ -277,12 +328,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        axMenuItem?.title = Permissions.accessibilityGranted
+        let accessibilityGranted = Permissions.accessibilityGranted
+        axMenuItem?.title = accessibilityGranted
             ? "Accessibility: granted ✓"
             : "Accessibility: not granted ✗"
         modelMenuItem?.title = modelStatus
         polishMenuItem?.title = controller.polishStatus
+        refreshRecoveryItems(accessibilityGranted: accessibilityGranted)
         refreshRecentMenu()
+    }
+
+    private func refreshRecoveryItems(accessibilityGranted: Bool) {
+        guard
+            let recoveryLeadingSeparatorItem,
+            let recoveryWarningItem,
+            let accessibilitySettingsItem,
+            let inputMonitoringSettingsItem,
+            let retryHotkeyItem,
+            let recoveryTrailingSeparatorItem
+        else { return }
+
+        let setup = hotkeySetupState(accessibilityGranted: accessibilityGranted)
+        let showRecovery = setup.showRecoveryActions
+        recoveryLeadingSeparatorItem.isHidden = !showRecovery
+        recoveryTrailingSeparatorItem.isHidden = false
+        accessibilitySettingsItem.isHidden = !showRecovery
+        inputMonitoringSettingsItem.isHidden = !showRecovery
+        retryHotkeyItem.isHidden = !showRecovery
+
+        if let warning = setup.warningText {
+            recoveryWarningItem.title = warning
+            recoveryWarningItem.isHidden = !showRecovery
+        } else {
+            recoveryWarningItem.isHidden = true
+        }
+    }
+
+    private func diagnosticsReport(accessibilityGranted: Bool) -> DiagnosticsReport {
+        let history = HistoryStore.shared.entries.last
+        let info = Bundle.main.infoDictionary ?? [:]
+        return DiagnosticsReport(
+            timestamp: Date(),
+            appVersion: info["CFBundleShortVersionString"] as? String ?? "unknown",
+            buildVersion: info["CFBundleVersion"] as? String ?? "unknown",
+            bundlePath: Bundle.main.bundleURL.path,
+            processID: ProcessInfo.processInfo.processIdentifier,
+            hotkeyTitle: currentHotkey.title,
+            activationTitle: currentMode.title,
+            dictationState: stateDescription(for: controller.state),
+            sessionLocked: sessionLocked,
+            hotkeyListenerActive: hotkeyListenerActive,
+            accessibilityGranted: accessibilityGranted,
+            inputMonitoringGranted: Permissions.inputMonitoringGranted,
+            microphonePermission: Permissions.microphonePermissionSummary,
+            launchAtLoginEnabled: loginItemEnabled,
+            modelStatus: modelStatus,
+            polishStatus: controller.polishStatus,
+            historyCount: HistoryStore.shared.entries.count,
+            lastHistoryApp: history?.app,
+            lastHistoryDate: history?.date,
+            setupWarning: hotkeySetupState(accessibilityGranted: accessibilityGranted).warningText
+        )
+    }
+
+    private func stateDescription(for state: DictationController.State) -> String {
+        switch state {
+        case .idle:
+            return "idle"
+        case .recording:
+            return "recording"
+        case .processing:
+            return "processing"
+        }
     }
 
     /// Clipboard-manager-style quick access: clicking an entry pastes it into

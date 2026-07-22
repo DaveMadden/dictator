@@ -1,8 +1,25 @@
 import AppKit
 import ApplicationServices
+import AVFoundation
 
 enum Permissions {
     static var accessibilityGranted: Bool { AXIsProcessTrusted() }
+    static var inputMonitoringGranted: Bool { CGPreflightListenEventAccess() }
+
+    static var microphonePermissionSummary: String {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            return "authorized"
+        case .notDetermined:
+            return "notDetermined"
+        case .denied:
+            return "denied"
+        case .restricted:
+            return "restricted"
+        @unknown default:
+            return "unknown"
+        }
+    }
 
     @discardableResult
     static func promptForAccessibility() -> Bool {

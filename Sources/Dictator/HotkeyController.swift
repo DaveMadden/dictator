@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import OSLog
 
 /// Watches the configured push-to-talk key globally via a CGEventTap.
 /// Requires the Accessibility permission; `start()` returns false until it
@@ -11,21 +12,24 @@ final class HotkeyController {
     /// The space keystroke is swallowed so it never reaches the focused app.
     var onLock: (() -> Void)?
     var hotkey: Hotkey = .fn {
-        didSet { keyIsDown = false }
+        didSet { state.hotkey = hotkey }
     }
 
-    private static let spaceKeyCode: Int64 = 49
+    private let log = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.davidmadden.dictator",
+        category: "hotkey"
+    )
+    private let state = HotkeyStateMachine()
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var tapThread: Thread?
     private var tapRunLoop: CFRunLoop?
-    private var keyIsDown = false
-    private var swallowSpaceUp = false
 
     @discardableResult
     func start() -> Bool {
         stop()
+        state.hotkey = hotkey
         let mask = CGEventMask(
             (1 << CGEventType.flagsChanged.rawValue)
                 | (1 << CGEventType.keyDown.rawValue)
@@ -39,17 +43,17 @@ final class HotkeyController {
             callback: { _, type, event, refcon in
                 guard let refcon else { return Unmanaged.passUnretained(event) }
                 let controller = Unmanaged<HotkeyController>.fromOpaque(refcon).takeUnretainedValue()
-                let swallow = controller.handle(type: type, event: event)
-                return swallow ? nil : Unmanaged.passUnretained(event)
+                return controller.handleTap(type: type, event: event)
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            log.error("Dictator hotkey: failed to create event tap")
             return false
         }
         eventTap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
+        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CGEvent.tapEnable(tap: tap, enable: true)
+
         // The tap must NOT live on the main runloop: this is an active tap on
         // every keystroke, and macOS queues system-wide keyboard input behind
         // it — a hung main thread would freeze typing everywhere. A dedicated
@@ -64,6 +68,7 @@ final class HotkeyController {
         thread.qualityOfService = .userInteractive
         tapThread = thread
         thread.start()
+        log.notice("Dictator hotkey: listener started for \(self.hotkey.title, privacy: .public)")
         return true
     }
 
@@ -81,40 +86,65 @@ final class HotkeyController {
             CGEvent.tapEnable(tap: tap, enable: false)
             eventTap = nil
         }
-        keyIsDown = false
-        swallowSpaceUp = false
+        state.reset()
     }
 
-    /// Returns true when the event should be swallowed (not delivered to apps).
-    private func handle(type: CGEventType, event: CGEvent) -> Bool {
+    private func handleTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
-            return false
+            log.notice(
+                "Dictator hotkey: event tap disabled by \(self.tapDisableReason(for: type), privacy: .public); re-enabling"
+            )
         }
+
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        let outcome: HotkeyEventOutcome
         switch type {
-        case .flagsChanged:
-            guard keyCode == hotkey.keyCode else { return false }
-            let active = event.flags.contains(hotkey.flag)
-            if active && !keyIsDown {
-                keyIsDown = true
-                DispatchQueue.main.async { self.onPress?() }
-            } else if !active && keyIsDown {
-                keyIsDown = false
-                DispatchQueue.main.async { self.onRelease?() }
-            }
-            return false
-        case .keyDown:
-            guard keyIsDown, keyCode == Self.spaceKeyCode else { return false }
-            swallowSpaceUp = true
-            DispatchQueue.main.async { self.onLock?() }
-            return true
-        case .keyUp:
-            guard swallowSpaceUp, keyCode == Self.spaceKeyCode else { return false }
-            swallowSpaceUp = false
-            return true
+        case .flagsChanged, .tapDisabledByTimeout, .tapDisabledByUserInput:
+            outcome = state.handleMonitorEvent(type: type, keyCode: keyCode, flags: event.flags)
+        case .keyDown, .keyUp:
+            outcome = state.handleGuardEvent(type: type, keyCode: keyCode)
         default:
-            return false
+            return Unmanaged.passUnretained(event)
+        }
+
+        apply(outcome)
+        return outcome.swallowEvent ? nil : Unmanaged.passUnretained(event)
+    }
+
+    private func apply(_ outcome: HotkeyEventOutcome) {
+        for action in outcome.tapActions {
+            switch action {
+            case .reenableMonitorTap, .reenableGuardTap:
+                if let eventTap {
+                    CGEvent.tapEnable(tap: eventTap, enable: true)
+                }
+            case .enableGuardTap, .disableGuardTap:
+                break
+            }
+        }
+
+        if outcome.emitPress {
+            log.debug("Dictator hotkey: detected hotkey press")
+            DispatchQueue.main.async { self.onPress?() }
+        }
+        if outcome.emitRelease {
+            log.debug("Dictator hotkey: detected hotkey release")
+            DispatchQueue.main.async { self.onRelease?() }
+        }
+        if outcome.emitLock {
+            log.debug("Dictator hotkey: swallowed lock chord")
+            DispatchQueue.main.async { self.onLock?() }
+        }
+    }
+
+    private func tapDisableReason(for type: CGEventType) -> String {
+        switch type {
+        case .tapDisabledByTimeout:
+            return "timeout"
+        case .tapDisabledByUserInput:
+            return "user input"
+        default:
+            return "unknown"
         }
     }
 }

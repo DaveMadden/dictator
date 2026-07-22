@@ -8,6 +8,13 @@ lock); tap the hotkey again to finish. A tap-to-toggle mode is also available
 under menu → Activation. All speech recognition and
 formatting runs on-device; the app makes **zero network calls at runtime**.
 
+> Dictator is a personal project built first for my own use, and I expect to
+> keep shipping changes in that spirit. I’m sharing it because it may be a
+> useful starting point for other people building local dictation tools, and
+> forks are welcome. I may take bug reports and improvements when they are
+> helpful, but this is not a commercial product and does not come with a formal
+> support, compatibility, or roadmap commitment.
+
 See [PLAN.md](PLAN.md) for the full architecture and roadmap.
 
 ## Quick Run
@@ -212,14 +219,16 @@ and how to verify the network claims yourself, see
 
 **Problem**: The app says "Hotkey inactive" even though Dictator is enabled in Accessibility settings.
 
-**Cause**: Ad-hoc signed builds get a new signature each time, so macOS treats each rebuild as a different app. The Accessibility permission you granted is tied to the old signature.
+**Cause**: Ad-hoc signed builds get a new signature each time, so macOS treats each rebuild as a different app. The Accessibility permission you granted is tied to the old signature, not the new `build/Dictator.app`. On some macOS versions this is especially misleading: Accessibility still shows a checked "Dictator" entry, so it looks like permission is present even though the current binary is not actually trusted.
 
 **Workaround**:
 1. System Settings → Privacy & Security → Accessibility
-2. Select "Dictator" and click the **"-"** button to remove it completely
-3. Click the **"+"** button and navigate to `build/Dictator.app`
-4. Enable the toggle for the newly added entry
-5. Relaunch the app
+2. Select "Dictator" and click the **"-"** button to remove the stale entry completely
+3. Click the **"+"** button and navigate to the current `build/Dictator.app`
+4. Add that app and enable the toggle for the newly added entry
+5. Relaunch Dictator, or use **Retry Hotkey Listener** from the menu
+
+If you skip the remove-and-readd step, macOS can stay stuck authorizing an older build while the current one keeps ignoring the hotkey.
 
 **Permanent fix**: Create a "Dictator Dev" signing certificate (see "Keeping permissions across rebuilds" above) so the signature stays stable across rebuilds.
 

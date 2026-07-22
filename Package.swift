@@ -54,6 +54,13 @@ targets.append(
         swiftSettings: swiftSettings
     )
 )
+targets.append(
+    .testTarget(
+        name: "DictatorTests",
+        dependencies: ["Dictator"],
+        path: "Tests/DictatorTests"
+    )
+)
 
 let package = Package(
     name: "Dictator",
