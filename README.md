@@ -10,16 +10,67 @@ formatting runs on-device; the app makes **zero network calls at runtime**.
 
 See [PLAN.md](PLAN.md) for the full architecture and roadmap.
 
+## Quick Run
+
+If you already have the speech model downloaded and just want to build and run:
+
+```sh
+./scripts/build-app.sh   # builds build/Dictator.app
+open build/Dictator.app  # launches the app
+```
+
+On first launch, ensure you have acquired Admin permissions so you can grant Accessibility and Microphone permissions when prompted. Then configure the model path in the menu bar → Settings → Models to point at your downloaded `parakeet-tdt-0.6b-v3-coreml` directory.
+
+#### Getting Models via STR's Nexus
+
+If you're on the STR network and need to download the speech model (`parakeet-tdt-0.6b-v3-coreml`):
+
+1. **Connect to the STR VPN**
+
+2. **Install the Hugging Face CLI** from PyPI:
+
+   ```sh
+   python3 -m pip install --user huggingface_hub==0.21.0
+   ```
+
+3. **Add the user CLI bin directory to your PATH** for the current shell:
+
+   ```sh
+   export PATH="$HOME/Library/Python/3.9/bin:$PATH"
+   ```
+
+4. **Point Hugging Face traffic at the STR Nexus proxy**:
+
+   ```sh
+   export HF_ENDPOINT="https://nexus.str.us/repository/it-hf-proxy/"
+   export HF_HUB_DOWNLOAD_TIMEOUT=120
+   export HF_HUB_ETAG_TIMEOUT=1800
+   ```
+
+5. **Download the model**:
+   ```sh
+   huggingface-cli download FluidInference/parakeet-tdt-0.6b-v3-coreml --local-dir ~/models/parakeet-tdt-0.6b-v3-coreml
+   ```
+
+**Important notes:**
+
+- The working huggingface_hub version is `0.21.0` (not 1.21.0 as identified in the STR Nexus documentation)
+- The installed command is `huggingface-cli`, not `hf`
+- The package install comes from PyPI; model downloads route through Nexus once `HF_ENDPOINT` is set
+- If you hit odd download behavior, move `~/.cache/huggingface` out of the way
+
+After downloading, point the app at `~/models/parakeet-tdt-0.6b-v3-coreml` via Settings → Models.
+
 ## Status
 
-| Milestone | State |
-|---|---|
-| M0 — menu bar app, fn hotkey, mic capture, paste injection (stub transcription) | ✅ |
-| M1 — real local transcription (Parakeet TDT v3 via CoreML) | ✅ |
-| M2 — streaming transcription, overlay pill, silence trim, toggle mode | ✅ |
-| M3 — personal dictionary, spoken commands, history, settings window | ✅ |
-| M4 — local LLM polish (embedded llama.cpp or Ollama), per-app tone, context | ✅ |
-| M5 — whisper.cpp fallback, app icon, signing, releases | |
+| Milestone                                                                       | State |
+| ------------------------------------------------------------------------------- | ----- |
+| M0 — menu bar app, fn hotkey, mic capture, paste injection (stub transcription) | ✅    |
+| M1 — real local transcription (Parakeet TDT v3 via CoreML)                      | ✅    |
+| M2 — streaming transcription, overlay pill, silence trim, toggle mode           | ✅    |
+| M3 — personal dictionary, spoken commands, history, settings window             | ✅    |
+| M4 — local LLM polish (embedded llama.cpp or Ollama), per-app tone, context     | ✅    |
+| M5 — whisper.cpp fallback, app icon, signing, releases                          |       |
 
 ## Build & run
 
@@ -38,10 +89,10 @@ The default build contains **no inference engine and no downloader** — no code
 that can open a network connection. Two opt-in components are compiled in only
 when explicitly requested:
 
-| Build | Command | Contains |
-|---|---|---|
-| Default | `make app` | Speech recognition only. No LLM, no downloader. |
-| Full | `make app-full` | Adds llama.cpp AI polish + Hugging Face model download |
+| Build   | Command         | Contains                                               |
+| ------- | --------------- | ------------------------------------------------------ |
+| Default | `make app`      | Speech recognition only. No LLM, no downloader.        |
+| Full    | `make app-full` | Adds llama.cpp AI polish + Hugging Face model download |
 
 `make audit` verifies the claim on whatever you built: it lists network calls in
 this project's source (with the compile flag guarding each one), networking
@@ -59,13 +110,13 @@ Cocoa app.
 ## First-run setup
 
 1. **Accessibility permission** — needed for the global `fn` hotkey and for
-   pasting into other apps. The app prompts on first launch; enable *Dictator*
+   pasting into other apps. The app prompts on first launch; enable _Dictator_
    in System Settings → Privacy & Security → Accessibility. If it doesn't
    appear, add `build/Dictator.app` with the + button. Some macOS versions also
    require Input Monitoring — the menu has shortcuts to both panes. Use
-   *Retry Hotkey Listener* from the menu after granting.
+   _Retry Hotkey Listener_ from the menu after granting.
 2. **Microphone permission** — prompted the first time you hold `fn`.
-3. **Free up the `fn` key** — System Settings → Keyboard → *Press 🌐 key to:*
+3. **Free up the `fn` key** — System Settings → Keyboard → _Press 🌐 key to:_
    **Do Nothing**, so dictating doesn't also open the emoji picker.
 
 Note: the app is ad-hoc signed, so rebuilding can invalidate previously granted
