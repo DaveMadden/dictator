@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import ServiceManagement
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -116,6 +117,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openInputMonitoringSettings() { Permissions.openInputMonitoringPane() }
     @objc private func quit() { NSApp.terminate(nil) }
 
+    @objc private func toggleLoginItem() {
+        if #available(macOS 13.0, *) {
+            let service = SMAppService.mainApp
+            do {
+                if service.status == .enabled {
+                    try service.unregister()
+                } else {
+                    try service.register()
+                }
+                rebuildMenu()
+            } catch {
+                NSLog("Dictator: failed to toggle login item: %@", error.localizedDescription)
+            }
+        }
+    }
+
+    private var loginItemEnabled: Bool {
+        if #available(macOS 13.0, *) {
+            return SMAppService.mainApp.status == .enabled
+        }
+        return false
+    }
+
     @objc private func selectHotkey(_ sender: NSMenuItem) {
         guard
             let raw = sender.representedObject as? String,
@@ -224,6 +248,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(recentItem)
         menu.addItem(actionItem("Settings…", #selector(openSettings), key: ","))
         menu.addItem(actionItem("History…", #selector(openHistory)))
+        menu.addItem(.separator())
+        let loginItem = actionItem("Start at Login", #selector(toggleLoginItem))
+        loginItem.state = loginItemEnabled ? .on : .off
+        menu.addItem(loginItem)
         menu.addItem(.separator())
         if !hotkeyActive {
             menu.addItem(disabledItem("⚠️ Hotkey inactive — activates itself once permission is granted"))

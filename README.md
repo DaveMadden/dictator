@@ -119,9 +119,28 @@ Cocoa app.
 3. **Free up the `fn` key** — System Settings → Keyboard → _Press 🌐 key to:_
    **Do Nothing**, so dictating doesn't also open the emoji picker.
 
-Note: the app is ad-hoc signed, so rebuilding can invalidate previously granted
-permissions — re-grant (toggle off/on) after a rebuild if the hotkey goes dead.
-Proper local signing lands in M5.
+### Keeping permissions across rebuilds
+
+The app is ad-hoc signed by default, so rebuilding invalidates previously granted
+permissions (macOS treats each rebuild as a different app). To keep permissions
+stable across rebuilds, create a local code signing certificate:
+
+1. Open **Keychain Access** (Applications → Utilities)
+2. Menu: Keychain Access → Certificate Assistant → Create a Certificate...
+   - Name: `Dictator Dev` (must be exactly this name)
+   - Identity Type: Self Signed Root
+   - Certificate Type: Code Signing
+   - Check "Let me override defaults", then Continue through defaults
+   - Save to "login" keychain
+3. Rebuild: `./scripts/build-app.sh` (you'll see "signed: Dictator Dev")
+4. Re-grant permissions one last time in System Settings
+
+After this, rebuilding won't reset your permissions.
+
+### Launch at startup
+
+Use the menu bar → Start at Login to enable/disable launching Dictator on login.
+Alternatively, add it manually via System Settings → General → Login Items.
 
 ## Speech models (and the zero-network install)
 
@@ -193,6 +212,23 @@ and how to verify the network claims yourself, see
 - With sideloaded models (above) the app makes zero network connections,
   verifiable with Little Snitch or `lsof -i`.
 - If a password field is focused (secure input), Dictator refuses to inject.
+
+## Troubleshooting
+
+### Hotkey won't activate after rebuilding
+
+**Problem**: The app says "Hotkey inactive" even though Dictator is enabled in Accessibility settings.
+
+**Cause**: Ad-hoc signed builds get a new signature each time, so macOS treats each rebuild as a different app. The Accessibility permission you granted is tied to the old signature.
+
+**Workaround**:
+1. System Settings → Privacy & Security → Accessibility
+2. Select "Dictator" and click the **"-"** button to remove it completely
+3. Click the **"+"** button and navigate to `build/Dictator.app`
+4. Enable the toggle for the newly added entry
+5. Relaunch the app
+
+**Permanent fix**: Create a "Dictator Dev" signing certificate (see "Keeping permissions across rebuilds" above) so the signature stays stable across rebuilds.
 
 ## Credits
 
