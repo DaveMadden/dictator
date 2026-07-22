@@ -52,7 +52,7 @@ struct DictatorCLI {
                 throw NSError(
                     domain: "DictatorCLI", code: 2,
                     userInfo: [NSLocalizedDescriptionKey:
-                        "speech models not installed — run `make install-models-from-repo` (this tool never downloads)"]
+                        "speech models not installed — install them via the sanctioned proxy workflow or `make install-models FILE=<tarball>` (this tool never downloads)"]
                 )
             }
             let models = try await AsrModels.load(from: modelsDir, version: .v3)

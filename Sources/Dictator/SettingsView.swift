@@ -171,7 +171,7 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
                 .font(.callout)
             #else
-            Text("This build contains no downloader: models load only from these paths, and a missing model is an error. Install them with `make install-models-from-repo`, or point at a vetted copy.")
+            Text("This build contains no downloader: models load only from these paths, and a missing model is an error. Point at a vetted copy below, or install one with `make install-models FILE=<tarball>`.")
                 .foregroundStyle(.secondary)
                 .font(.callout)
             #endif

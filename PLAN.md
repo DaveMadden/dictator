@@ -211,8 +211,8 @@ first and rewrite after; text mutating under the cursor is worse than a
 This is the story that gets it approved at work:
 
 - **No runtime network calls.** The only network access is the explicit
-  first-run model download, which can instead be done manually (or the models
-  committed to the repo via Git LFS / attached to GitHub Releases).
+  first-run model download, which can instead be done through the sanctioned
+  STR Hugging Face proxy or by pointing the app at a vetted internal copy.
 - Trivially auditable: small from-scratch codebase, no analytics, no
   auto-update phoning home. `lsof`/Little Snitch will show zero connections.
 - History is local SQLite, with retention controls and a purge button.
@@ -258,8 +258,8 @@ capture, per-app tone profiles, hallucination guard, secure-input refusal.
 
 **M5 — Ship (1–2 days)**
 App icon, codesign + notarize (free Apple ID ad-hoc signing works for
-personal use; notarization needs the $99 developer account), GitHub Actions
-release build, README with the privacy/audit story, optional Homebrew tap.
+personal use; notarization needs the $99 developer account), CI release
+build, README with the privacy/audit story, optional Homebrew tap.
 
 Total: roughly two focused weeks to full Wispr-parity for personal use, with a
 genuinely useful tool after day 2.

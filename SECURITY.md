@@ -296,17 +296,16 @@ and it is exactly what option 2 below is for.
 
 ### How it gets onto a machine
 
-Four options; the choice is yours, and none require code changes:
+Three options; the choice is yours, and none require code changes:
 
-1. **From this repository.** `make install-models-from-repo` fetches from the
-   `models` branch, verifies the checksum, installs. Only GitHub is contacted.
-2. **From a location you control.** Settings → Models accepts any path, so a
-   copy your team has independently vetted and hosts internally (Artifactory, a
-   file share) is used directly. **This is the intended path if models must be
-   approved before use.**
-3. **Offline transfer.** `make export-models` produces a verifiable tarball
+1. **From a location you control.** Settings → Models accepts any path, so a
+   copy your team has independently vetted and hosts internally (for example,
+   a file share, Artifactory, or a download performed through STR's sanctioned
+   Hugging Face proxy) is used directly. **This is the intended path if models
+   must be approved before use.**
+2. **Offline transfer.** `make export-models` produces a verifiable tarball
    that moves by USB or AirDrop, installed with `make install-models FILE=…`.
-4. **Through an internal registry mirror.** The FluidAudio library reads a
+3. **Through an internal registry mirror.** The FluidAudio library reads a
    `REGISTRY_URL` / `MODEL_REGISTRY_URL` environment variable, so an
    organization mirroring Hugging Face internally can point the downloader at
    that mirror. (Relevant only to `DICTATOR_DOWNLOAD=1` builds; the default
@@ -323,9 +322,11 @@ The default build has **one** direct dependency and **zero** transitive ones:
 Both are pinned in [Package.resolved](Package.resolved). The llama.cpp binary
 is pinned to a specific release **and** a SHA-256 checksum in
 [Package.swift](Package.swift), so a substituted artifact fails the build.
-Everything is fetched from GitHub. Installing Apple's Command Line Tools (a
-prerequisite) contacts Apple. After the build, running the app contacts
-nothing.
+Build dependencies are fetched from their pinned upstream locations.
+Installing Apple's Command Line Tools (a prerequisite) contacts Apple. In the
+standard STR workflow, the speech model itself is obtained separately via the
+sanctioned Hugging Face proxy or a vetted internal copy. After the build,
+running the app contacts nothing.
 
 ### Evaluating this against standard practice
 

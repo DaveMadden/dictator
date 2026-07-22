@@ -72,7 +72,7 @@ actor ParakeetTranscriber: Transcriber {
         NSError(
             domain: "Dictator", code: 10,
             userInfo: [NSLocalizedDescriptionKey:
-                "Speech models not found at \(directory.path). Install them with `make install-models-from-repo`, or point Settings → Models at your copy."]
+                "Speech models not found at \(directory.path). Point Settings → Models at your vetted copy, or install one with `make install-models FILE=<tarball>`."]
         )
     }
 

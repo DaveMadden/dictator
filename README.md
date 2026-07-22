@@ -148,26 +148,19 @@ Transcription uses NVIDIA's Parakeet TDT 0.6B v3 as CoreML models (~470MB on
 disk). **The app never downloads models by default** — it loads them only
 from the paths shown in Settings → Models (both the speech folder and the
 polish model are configurable there, so vetted copies can live anywhere: an
-internal Artifactory checkout, a shared drive, a USB stick). If a model is
+internal file share, an Artifactory checkout, a USB stick). If a model is
 missing, the app reports it and stops; it does not fetch. Ways to get the
 speech models onto a machine:
 
-- **From this repo** — the only host contacted is GitHub itself. From a
-  fresh clone, **before first launch**:
-
-  ```sh
-  make install-models-from-repo
-  ```
-
-  This fetches this repo's `models` branch (the same models, chunked under
-  GitHub's file-size limit), reassembles the tarball, verifies its SHA-256,
-  and installs it. Sideloaded models take priority over the downloader,
-  which then never runs.
-
+- **On STR machines**: use the Nexus workflow above to download
+  `parakeet-tdt-0.6b-v3-coreml` through the sanctioned Hugging Face proxy,
+  then point Settings → Models at that folder if needed.
 - **Without any network**: `make export-models` on a machine that has the
   models, move the tarball by AirDrop/USB, then
   `make install-models FILE=dictator-models-v3.tar.gz` — or point
   Settings → Models at wherever your organization keeps vetted copies.
+- **From a vetted internal location**: Settings → Models accepts any folder,
+  so a team-hosted copy on a share or internal artifact store works directly.
 - **Opt-in download**: Settings → Models has an off-by-default toggle to
   allow a one-time fetch from Hugging Face, for personal machines where
   that's acceptable. (The developer CLI's transcribe smoke test may also

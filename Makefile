@@ -1,4 +1,4 @@
-.PHONY: app app-full audit run stop clean install install-full export-models install-models install-models-from-repo
+.PHONY: app app-full audit run stop clean install install-full export-models install-models
 
 # Default build: no inference engine, no downloader, no network-capable code.
 app:
@@ -18,9 +18,6 @@ export-models:
 
 install-models:
 	./scripts/models.sh install $(FILE)
-
-install-models-from-repo:
-	./scripts/models.sh install-from-repo
 
 run: app
 	open build/Dictator.app

@@ -37,7 +37,7 @@ enum ModelInventory {
         }
         return SpeechStatus(
             found: false,
-            detail: "Not found — run make install-models-from-repo, or point at your folder below"
+            detail: "Not found — point at your folder below, or install one with make install-models FILE=<tarball>"
         )
     }
 
