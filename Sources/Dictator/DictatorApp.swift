@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hotkeyListenerActive = false
     private var currentHotkey = Hotkey.saved
     private var currentMode = ActivationMode.saved
-    private var sessionLocked = false
+    private var lockCoordinator = HandsFreeLockCoordinator()
     private var permissionPollTimer: Timer?
     private var modelMenuItem: NSMenuItem!
     private var polishMenuItem: NSMenuItem!
@@ -53,30 +53,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateOtherInstances()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        controller.onStateChange = { [weak self] state in self?.render(state: state) }
+        controller.onStateChange = { [weak self] state in
+            guard let self else { return }
+            if state == .recording, self.lockCoordinator.recordingDidStart() {
+                self.controller.showHandsFreeLock()
+            }
+            self.render(state: state)
+        }
         controller.onModelStatus = { [weak self] status in self?.modelStatus = status }
         controller.warmUpModel()
         hotkey.hotkey = currentHotkey
         hotkey.onPress = { [weak self] in
             guard let self else { return }
             if self.controller.state == .idle {
-                self.sessionLocked = false
+                self.lockCoordinator.beginSession()
                 self.controller.beginDictation()
             } else {
                 // Stops a toggle-mode or hands-free-locked session.
-                self.sessionLocked = false
+                self.lockCoordinator.endSession()
                 self.controller.endDictation()
             }
         }
         hotkey.onRelease = { [weak self] in
-            guard let self, self.currentMode == .hold, !self.sessionLocked else { return }
+            guard let self, self.lockCoordinator.shouldEndOnRelease(activationMode: self.currentMode) else { return }
             self.controller.endDictation()
         }
         hotkey.onLock = { [weak self] in
-            guard let self, self.currentMode == .hold,
-                  self.controller.state == .recording, !self.sessionLocked else { return }
-            self.sessionLocked = true
-            self.controller.showHandsFreeLock()
+            guard let self else { return }
+            if self.lockCoordinator.requestLock(
+                activationMode: self.currentMode,
+                dictationState: self.controller.state
+            ) {
+                self.controller.showHandsFreeLock()
+            }
         }
         startHotkey()
         render(state: .idle)
@@ -376,7 +385,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             hotkeyTitle: currentHotkey.title,
             activationTitle: currentMode.title,
             dictationState: stateDescription(for: controller.state),
-            sessionLocked: sessionLocked,
+            sessionLocked: lockCoordinator.sessionLocked,
             hotkeyListenerActive: hotkeyListenerActive,
             accessibilityGranted: accessibilityGranted,
             inputMonitoringGranted: Permissions.inputMonitoringGranted,
