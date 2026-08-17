@@ -35,6 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var modelStatus = "Model: loading…"
     private var settingsWindow: NSWindow?
     private var historyWindow: NSWindow?
+    private var historyReturnTarget: HistoryReturnTarget?
+    private var lastExternalApp: HistoryReturnTarget?
+    private var appActivationObserver: NSObjectProtocol?
     private var recentMenu: NSMenu!
     private var recoveryLeadingSeparatorItem: NSMenuItem!
     private var recoveryWarningItem: NSMenuItem!
@@ -52,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         terminateOtherInstances()
+        startTrackingExternalApps()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         controller.onStateChange = { [weak self] state in
             guard let self else { return }
@@ -213,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openHistory() {
+        historyReturnTarget = lastExternalApp ?? captureCurrentExternalApp()
         presentWindow(
             &historyWindow,
             title: "Dictation History",
@@ -225,10 +230,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Enter/double-click in the History window: dismiss, give focus back to
     /// the app the user came from, then inject.
     private func pasteDismissingHistory(_ text: String) {
+        let returnApp = historyReturnTarget?.runningApplication
+        historyReturnTarget = nil
         historyWindow?.orderOut(nil)
-        NSApp.hide(nil)
+        _ = returnApp?.activate(options: [])
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.controller.pasteFromHistory(text)
+        }
+    }
+
+    private func captureCurrentExternalApp() -> HistoryReturnTarget? {
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        return HistoryReturnTarget.capture(
+            frontmostProcessIdentifier: frontmost?.processIdentifier,
+            frontmostBundleIdentifier: frontmost?.bundleIdentifier,
+            appProcessIdentifier: ProcessInfo.processInfo.processIdentifier,
+            appBundleIdentifier: Bundle.main.bundleIdentifier
+        )
+    }
+
+    private func startTrackingExternalApps() {
+        lastExternalApp = captureCurrentExternalApp()
+        appActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let self else { return }
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            self.lastExternalApp = HistoryReturnTarget.updated(
+                current: self.lastExternalApp,
+                activatedProcessIdentifier: app?.processIdentifier,
+                activatedBundleIdentifier: app?.bundleIdentifier,
+                appProcessIdentifier: ProcessInfo.processInfo.processIdentifier,
+                appBundleIdentifier: Bundle.main.bundleIdentifier
+            )
         }
     }
 
