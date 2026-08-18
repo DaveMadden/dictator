@@ -322,9 +322,7 @@ Both are pinned in [Package.resolved](Package.resolved). The llama.cpp binary
 is pinned to a specific release **and** a SHA-256 checksum in
 [Package.swift](Package.swift), so a substituted artifact fails the build.
 Build dependencies are fetched from their pinned upstream locations.
-Installing Apple's Command Line Tools (a prerequisite) contacts Apple. In the
-standard STR workflow, the speech model itself is obtained separately via the
-sanctioned Hugging Face proxy or a vetted internal copy. After the build,
+Installing Apple's Command Line Tools (a prerequisite) contacts Apple. The speech model itself is obtained separately, via a sanctioned Hugging Face proxy or a vetted internal copy. After the build,
 running the app contacts nothing.
 
 ### Evaluating this against standard practice
