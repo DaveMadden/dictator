@@ -211,8 +211,8 @@ first and rewrite after; text mutating under the cursor is worse than a
 This is the story that gets it approved at work:
 
 - **No runtime network calls.** The only network access is the explicit
-  first-run model download, which can instead be done through the sanctioned
-  STR Hugging Face proxy or by pointing the app at a vetted internal copy.
+  first-run model download, which can instead be done through a corporate
+  Hugging Face proxy or by pointing the app at a vetted internal copy.
 - Trivially auditable: small from-scratch codebase, no analytics, no
   auto-update phoning home. `lsof`/Little Snitch will show zero connections.
 - History is local SQLite, with retention controls and a purge button.

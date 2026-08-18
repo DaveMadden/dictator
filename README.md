@@ -28,45 +28,27 @@ open build/Dictator.app  # launches the app
 
 On first launch, ensure you have acquired Admin permissions so you can grant Accessibility and Microphone permissions when prompted. Then configure the model path in the menu bar → Settings → Models to point at your downloaded `parakeet-tdt-0.6b-v3-coreml` directory.
 
-#### Getting Models via STR's Nexus
+### Downloading the speech model
 
-If you're on the STR network and need to download the speech model (`parakeet-tdt-0.6b-v3-coreml`):
+Dictator loads the Parakeet model from a local folder — it does not download by
+default. To fetch it from Hugging Face:
 
-1. **Connect to the STR VPN**
-
-2. **Install the Hugging Face CLI** from PyPI:
-
-   ```sh
-   python3 -m pip install --user huggingface_hub==0.21.0
-   ```
-
-3. **Add the user CLI bin directory to your PATH** for the current shell:
+1. **Install the Hugging Face CLI:**
 
    ```sh
-   export PATH="$HOME/Library/Python/3.9/bin:$PATH"
+   python3 -m pip install --user huggingface_hub
    ```
 
-4. **Point Hugging Face traffic at the STR Nexus proxy**:
+2. **Download the model:**
 
    ```sh
-   export HF_ENDPOINT="https://nexus.str.us/repository/it-hf-proxy/"
-   export HF_HUB_DOWNLOAD_TIMEOUT=120
-   export HF_HUB_ETAG_TIMEOUT=1800
+   huggingface-cli download FluidInference/parakeet-tdt-0.6b-v3-coreml \
+     --local-dir ~/models/parakeet-tdt-0.6b-v3-coreml
    ```
 
-5. **Download the model**:
-   ```sh
-   huggingface-cli download FluidInference/parakeet-tdt-0.6b-v3-coreml --local-dir ~/models/parakeet-tdt-0.6b-v3-coreml
-   ```
-
-**Important notes:**
-
-- The working huggingface_hub version is `0.21.0` (not 1.21.0 as identified in the STR Nexus documentation)
-- The installed command is `huggingface-cli`, not `hf`
-- The package install comes from PyPI; model downloads route through Nexus once `HF_ENDPOINT` is set
-- If you hit odd download behavior, move `~/.cache/huggingface` out of the way
-
-After downloading, point the app at `~/models/parakeet-tdt-0.6b-v3-coreml` via Settings → Models.
+Then point the app at `~/models/parakeet-tdt-0.6b-v3-coreml` via
+Settings → Models. If you're behind a corporate proxy, set `HF_ENDPOINT` to your
+proxy's Hugging Face mirror before downloading.
 
 ## Status
 
@@ -159,9 +141,9 @@ internal file share, an Artifactory checkout, a USB stick). If a model is
 missing, the app reports it and stops; it does not fetch. Ways to get the
 speech models onto a machine:
 
-- **On STR machines**: use the Nexus workflow above to download
-  `parakeet-tdt-0.6b-v3-coreml` through the sanctioned Hugging Face proxy,
-  then point Settings → Models at that folder if needed.
+- **Behind a corporate proxy**: set `HF_ENDPOINT` to your organization's
+  Hugging Face mirror, download `parakeet-tdt-0.6b-v3-coreml`, then point
+  Settings → Models at that folder if needed.
 - **Without any network**: `make export-models` on a machine that has the
   models, move the tarball by AirDrop/USB, then
   `make install-models FILE=dictator-models-v3.tar.gz` — or point

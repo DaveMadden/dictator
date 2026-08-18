@@ -300,8 +300,7 @@ Three options; the choice is yours, and none require code changes:
 
 1. **From a location you control.** Settings → Models accepts any path, so a
    copy your team has independently vetted and hosts internally (for example,
-   a file share, Artifactory, or a download performed through STR's sanctioned
-   Hugging Face proxy) is used directly. **This is the intended path if models
+   a file share, an internal artifact store, or a download performed through your organization's sanctioned Hugging Face proxy) is used directly. **This is the intended path if models
    must be approved before use.**
 2. **Offline transfer.** `make export-models` produces a verifiable tarball
    that moves by USB or AirDrop, installed with `make install-models FILE=…`.
