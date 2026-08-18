@@ -1,12 +1,19 @@
-# Dictator
+# Dictator 🎙️
 
-Fully local push-to-talk dictation for macOS. Hold the hotkey (`fn` by
-default — Right Shift/Command/Option also available from the menu bar → Hotkey),
-speak, release — text appears at your cursor in whatever app you're using.
-While holding, tap **Space** to lock hands-free recording (the pill shows a
-lock); tap the hotkey again to finish. A tap-to-toggle mode is also available
-under menu → Activation. All speech recognition and
-formatting runs on-device; the app makes **zero network calls at runtime**.
+**Fully local push-to-talk dictation for macOS — hold a key, speak, release, and
+clean text appears at your cursor. Zero network calls at runtime.**
+
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
+![Swift](https://img.shields.io/badge/Swift-5-orange)
+![License: MIT](https://img.shields.io/badge/License-MIT-green)
+
+I wanted Wispr Flow-style dictation on a machine where I couldn't send audio to
+the cloud and couldn't install arbitrary apps — so I built one that runs speech
+recognition entirely on-device and can prove it makes no network calls. Hold the
+hotkey (`fn` by default), speak, release — text lands in whatever app you're in.
+
+<!-- TODO(dave): add docs/demo.gif (a short dictation clip) and uncomment:
+![Dictator in action](docs/demo.gif) -->
 
 > Dictator is a personal project built first for my own use, and I expect to
 > keep shipping changes in that spirit. I’m sharing it because it may be a
@@ -71,6 +78,22 @@ make run     # build Dictator.app and launch it
 make stop    # quit the app
 make clean
 ```
+
+## How it works
+
+- **On-device speech recognition** — NVIDIA Parakeet TDT 0.6B v3 as CoreML
+  models via [FluidAudio](https://github.com/FluidInference/FluidAudio), running
+  through the Apple Neural Engine.
+- **Provably offline** — the default build compiles in no inference engine and
+  no downloader. `make audit` enumerates every network call in source (each
+  guarded by a compile flag), networking symbols in the binary, and live
+  sockets, and reports none reachable on a default build.
+- **Deterministic formatting pipeline** — filler removal, spoken commands,
+  quotes, and a personal dictionary run in ~200ms, with punctuation from
+  Parakeet itself. An optional local-LLM polish stage (llama.cpp, off by
+  default) is available via `make app-full`.
+- **Injects anywhere** — pastes into the frontmost app, and refuses to inject
+  into secure/password fields.
 
 ### Build modes
 
